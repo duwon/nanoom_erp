@@ -23,8 +23,9 @@ def _issue_cookie(response: Response, token: str) -> None:
         value=token,
         httponly=True,
         secure=settings.auth_cookie_secure,
-        samesite="lax",
+        samesite=settings.auth_cookie_samesite,
         max_age=settings.access_token_minutes * 60,
+        domain=settings.auth_cookie_domain,
         path="/",
     )
 
@@ -126,7 +127,11 @@ async def oauth_callback(
 @router.post("/logout")
 async def logout(response: Response) -> dict[str, str]:
     settings = get_settings()
-    response.delete_cookie(settings.auth_cookie_name, path="/")
+    response.delete_cookie(
+        settings.auth_cookie_name,
+        domain=settings.auth_cookie_domain,
+        path="/",
+    )
     return {"status": "ok"}
 
 

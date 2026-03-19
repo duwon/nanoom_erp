@@ -92,3 +92,18 @@ FRONTEND_PORT=3300
 - `GET http://localhost:<FRONTEND_PORT>/admin`는 정상 응답이어야 한다.
 - `GET http://localhost:<FRONTEND_PORT>/display`는 정상 응답이어야 한다.
 - `GET http://localhost:8000/api/v1/admin/users`와 `GET http://localhost:8000/api/v1/udms/boards`는 인증 후 정상 동작해야 한다.
+
+## 7. API Base URL Notes
+
+- `NEXT_PUBLIC_API_BASE_URL` is the public API base URL used by the browser.
+- `API_INTERNAL_BASE_URL` is the internal API base URL used by Next.js on the server side. In Docker Compose this should point to `http://backend:8000`.
+- `FRONTEND_PORT` only changes the public frontend port, such as `http://localhost:3300`. It is not the backend API address.
+- `FRONTEND_APP_URL` is the public frontend URL that the backend uses when it redirects after OAuth login.
+- `CORS_ORIGINS` must include the exact frontend origin that will call the backend with credentials.
+- `AUTH_COOKIE_SECURE=true` is required for HTTPS deployments.
+- `AUTH_COOKIE_SAMESITE=lax` fits same-site deployments such as `app.example.com` and `api.example.com`. Use `none` only when the frontend and backend are truly cross-site and you must allow credentialed cross-site requests.
+
+Recommended deployment:
+
+- Preferred: expose the frontend on `https://erp.example.com` and reverse proxy `/api` and `/ws` to the backend. Then set `NEXT_PUBLIC_API_BASE_URL=https://erp.example.com` and `API_INTERNAL_BASE_URL=http://backend:8000`.
+- Separate public backend origin: set `NEXT_PUBLIC_API_BASE_URL` to that backend URL, keep `API_INTERNAL_BASE_URL` on the private service URL, set `FRONTEND_APP_URL` to the frontend URL, and align `CORS_ORIGINS`, `AUTH_COOKIE_SECURE`, and `AUTH_COOKIE_SAMESITE`.

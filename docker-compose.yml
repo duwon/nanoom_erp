@@ -23,7 +23,21 @@ services:
     environment:
       MONGO_URL: ${MONGO_URL:-mongodb://mongo:27017}
       MONGO_DB: ${MONGO_DB:-nanoom_erp}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production-secret-key-123456}
+      FRONTEND_APP_URL: ${FRONTEND_APP_URL:-http://localhost:${FRONTEND_PORT:-3000}}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:${FRONTEND_PORT:-3000}}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      AUTH_COOKIE_SAMESITE: ${AUTH_COOKIE_SAMESITE:-lax}
+      AUTH_COOKIE_DOMAIN: ${AUTH_COOKIE_DOMAIN:-}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      KAKAO_OAUTH_CLIENT_ID: ${KAKAO_OAUTH_CLIENT_ID:-}
+      KAKAO_OAUTH_CLIENT_SECRET: ${KAKAO_OAUTH_CLIENT_SECRET:-}
+      AUTH_DEV_SEED_ENABLED: ${AUTH_DEV_SEED_ENABLED:-true}
+      AUTH_DEV_SEED_PROVIDER: ${AUTH_DEV_SEED_PROVIDER:-google}
+      AUTH_DEV_SEED_EMAIL: ${AUTH_DEV_SEED_EMAIL:-admin@localhost}
+      AUTH_DEV_SEED_PROVIDER_USER_ID: ${AUTH_DEV_SEED_PROVIDER_USER_ID:-dev-master}
+      AUTH_DEV_SEED_NAME: ${AUTH_DEV_SEED_NAME:-개발 관리자}
     ports:
       - "8000:8000"
     volumes:
@@ -45,6 +59,7 @@ services:
         condition: service_healthy
     environment:
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+      API_INTERNAL_BASE_URL: ${API_INTERNAL_BASE_URL:-http://backend:8000}
       NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:8000/ws/display}
       NEXT_TELEMETRY_DISABLED: "1"
     ports:

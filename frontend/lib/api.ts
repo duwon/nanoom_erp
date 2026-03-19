@@ -8,13 +8,10 @@ import type {
   SocialProvider,
   UserProfileUpdate,
 } from "@/lib/types";
-
-function getApiBaseUrl() {
-  return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-}
+import { getPublicApiBaseUrl } from "@/lib/api-base-url";
 
 function getApiV1BaseUrl() {
-  return `${getApiBaseUrl()}/api/v1`;
+  return `${getPublicApiBaseUrl()}/api/v1`;
 }
 
 export function getOAuthStartUrl(provider: SocialProvider, nextPath = "/") {
@@ -29,7 +26,7 @@ export function getWebSocketUrl() {
     return envUrl;
   }
 
-  const apiUrl = getApiBaseUrl();
+  const apiUrl = getPublicApiBaseUrl();
   if (apiUrl.startsWith("https://")) {
     return apiUrl.replace("https://", "wss://") + "/ws/display";
   }
@@ -130,7 +127,7 @@ export async function getBoards(): Promise<Board[]> {
 }
 
 export async function getOrderItems(): Promise<OrderItem[]> {
-  const response = await fetch(`${getApiBaseUrl()}/api/order-items`, {
+  const response = await fetch(`${getPublicApiBaseUrl()}/api/order-items`, {
     cache: "no-store",
   });
   return handleResponse<OrderItem[]>(response);
@@ -140,7 +137,7 @@ export async function updateOrderItem(
   itemId: string,
   payload: { title: string; content: string },
 ): Promise<OrderItem> {
-  const response = await fetch(`${getApiBaseUrl()}/api/order-items/${itemId}`, {
+  const response = await fetch(`${getPublicApiBaseUrl()}/api/order-items/${itemId}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -152,15 +149,18 @@ export async function updateOrderItem(
 }
 
 export async function activateOrderItem(itemId: string): Promise<DisplayState> {
-  const response = await fetch(`${getApiBaseUrl()}/api/order-items/${itemId}/activate`, {
-    method: "POST",
-  });
+  const response = await fetch(
+    `${getPublicApiBaseUrl()}/api/order-items/${itemId}/activate`,
+    {
+      method: "POST",
+    },
+  );
 
   return handleResponse<DisplayState>(response);
 }
 
 export async function getDisplayState(): Promise<DisplayState> {
-  const response = await fetch(`${getApiBaseUrl()}/api/display-state`, {
+  const response = await fetch(`${getPublicApiBaseUrl()}/api/display-state`, {
     cache: "no-store",
   });
 

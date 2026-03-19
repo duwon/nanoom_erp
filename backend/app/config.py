@@ -1,6 +1,6 @@
 import json
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     oauth_state_minutes: int = 10
     auth_cookie_name: str = "nanoom_access_token"
     auth_cookie_secure: bool = False
+    auth_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+    auth_cookie_domain: str | None = None
     frontend_app_url: str | None = None
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None
@@ -49,6 +51,19 @@ class Settings(BaseSettings):
                 return json.loads(raw_value)
             return [origin.strip() for origin in raw_value.split(",") if origin.strip()]
         raise TypeError("Invalid CORS origins configuration")
+
+    @field_validator("auth_cookie_samesite", mode="before")
+    @classmethod
+    def normalize_cookie_samesite(cls, value: str) -> str:
+        return value.strip().lower()
+
+    @field_validator("auth_cookie_domain", "frontend_app_url", mode="before")
+    @classmethod
+    def empty_string_to_none(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
 
     @property
     def resolved_frontend_app_url(self) -> str:

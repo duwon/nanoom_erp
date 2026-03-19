@@ -1,11 +1,8 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { getServerApiBaseUrl } from "@/lib/api-base-url";
 import type { AuthUser } from "@/lib/types";
-
-function getApiBaseUrl() {
-  return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
-}
 
 export function isProfileComplete(user: Pick<AuthUser, "name" | "position" | "department">) {
   return Boolean(user.name && user.position && user.department);
@@ -34,10 +31,18 @@ export function getAttentionRedirect(user: AuthUser, requestedPath = "/") {
 export async function getCurrentUserServer(): Promise<AuthUser | null> {
   const requestHeaders = await headers();
   const cookie = requestHeaders.get("cookie");
-  const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/me`, {
-    cache: "no-store",
-    headers: cookie ? { cookie } : {},
-  });
+  const authMeUrl = `${getServerApiBaseUrl()}/api/v1/auth/me`;
+  let response: Response;
+
+  try {
+    response = await fetch(authMeUrl, {
+      cache: "no-store",
+      headers: cookie ? { cookie } : {},
+    });
+  } catch (error) {
+    console.error("Failed to fetch current user on the server:", authMeUrl, error);
+    return null;
+  }
 
   if (response.status === 401) {
     return null;
