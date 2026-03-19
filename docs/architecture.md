@@ -3,6 +3,7 @@
 이 문서는 현재 코드베이스의 구조와, 앞으로 확장 모듈 형태로 유지하기 위한 권장 아키텍처를 정리한다.
 
 상위 목표와 우선순위는 [nanoom_erp.md](nanoom_erp.md)를 기준으로 한다.
+레이아웃 기준은 [layout.md](layout.md)를 기준으로 한다.
 
 ## 1. 현재 구조
 
@@ -13,6 +14,21 @@
 - 일반 사용자는 예배 순서 편집, 자막 입력, 문서 열람을 담당한다.
 - 관리자 화면은 사용자, 게시판, 예배 템플릿, 권한 관리 중심으로 동작한다.
 - `frontend/app/(workspace)/display/page.tsx`는 WebSocket으로 실시간 상태를 받는다.
+
+#### 현재 구조
+
+- `(auth)`는 로그인 전 진입과 인증 리다이렉트를 담당한다.
+- `(workspace)`는 일반 작업 화면과 display 화면을 포함한다.
+- `(admin)`은 관리자 전용 화면을 포함한다.
+- `frontend/app/(workspace)/udms/layout.tsx`와 `frontend/app/(workspace)/worship/layout.tsx`는 현재 권한 체크만 수행한다.
+
+#### 목표 레이아웃 기준
+
+- `(public)`은 공개 랜딩과 로그인만 담당한다.
+- `(workspace)`는 `/dashboard`, `/udms/*`, `/worship/*`를 포함하는 인증 워크스페이스다.
+- `(admin)`은 `/admin/*`을 담당하는 관리자 모듈이다.
+- `/display`는 공통 셸 외부의 예외 화면으로 유지한다.
+- 목표 기준의 `/dashboard`는 일반 사용자의 기본 진입점이다.
 
 ### 1.2 Backend
 
@@ -125,6 +141,7 @@ frontend/lib/
 - 화면별 로직은 `app`에서 시작한다.
 - 재사용 UI는 `components`로 올린다.
 - API 호출과 공통 타입은 `lib`로 모은다.
+- 목표 기준에서는 authenticated shell, global header, contextual sidebar를 별도 컴포넌트로 분리한다.
 
 ### 3.2 Backend
 
@@ -272,6 +289,7 @@ backend/app/
 3. 수정 이력과 공유, 결재의 데이터 구조를 분리한다.
 4. 관리자 페이지에 템플릿 관리와 권한 관리 화면을 붙인다.
 5. 자막 입력과 출력 모듈을 실시간 구조로 확장한다.
+6. 공통 레이아웃 셸을 도입하고 `/dashboard`를 기본 진입점으로 전환한다.
 
 ## 8. 현재 코드와의 연결
 
@@ -292,3 +310,4 @@ backend/app/
 
 - 상위 목표와 우선순위: [nanoom_erp.md](nanoom_erp.md)
 - 실행 방법과 운영 절차: [operations.md](operations.md)
+- 레이아웃 기준서: [layout.md](layout.md)

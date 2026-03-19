@@ -1,6 +1,7 @@
 # Operations
 
 이 문서는 로컬 개발 환경에서 현재 코드를 실행하는 방법과, 운영 시 확인해야 할 기본 경로를 정리한다.
+레이아웃 목표와 관련된 검증 항목은 [layout.md](layout.md)를 기준으로 추가 관리한다.
 
 ## 1. 로컬 실행
 
@@ -84,7 +85,15 @@ FRONTEND_PORT=3300
 
 백엔드도 마찬가지로 `/api/v1/*` 기준으로 분리되어 있다.
 
-## 6. 검증 기준
+## 6. 레이아웃 구현 후 검증 예정 항목
+
+- 로그인 후 일반 사용자가 `/dashboard`로 안내되는지 확인한다.
+- 모바일에서 글로벌 헤더가 축약되고 햄버거 메뉴로 사이드바가 열리는지 확인한다.
+- UDMS, Worship, Admin에서 현재 모듈에 맞는 contextual submenu가 노출되는지 확인한다.
+- `/display`가 전역 헤더와 사이드바 없이 독립 전체화면으로 유지되는지 확인한다.
+- 공개 랜딩 `/`와 로그인 `/login`이 비로그인 진입점으로 유지되는지 확인한다.
+
+## 7. 검증 기준
 
 - `docker compose ps`에서 `mongo`, `backend`, `frontend`가 모두 정상이어야 한다.
 - `GET http://localhost:8000/api/health` 응답은 `{"status":"ok"}`여야 한다.
@@ -93,7 +102,7 @@ FRONTEND_PORT=3300
 - `GET http://localhost:<FRONTEND_PORT>/display`는 정상 응답이어야 한다.
 - `GET http://localhost:8000/api/v1/admin/users`와 `GET http://localhost:8000/api/v1/udms/boards`는 인증 후 정상 동작해야 한다.
 
-## 7. API Base URL Notes
+## 8. API Base URL Notes
 
 - `NEXT_PUBLIC_API_BASE_URL` is the public API base URL used by the browser.
 - `API_INTERNAL_BASE_URL` is the internal API base URL used by Next.js on the server side. In Docker Compose this should point to `http://backend:8000`.
