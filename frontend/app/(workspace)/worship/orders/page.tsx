@@ -3,13 +3,13 @@ import { ModulePage } from "@/components/module-page";
 export default function WorshipOrdersPage() {
   return (
     <ModulePage
-      eyebrow="Worship / Orders"
+      eyebrow="예배 / 순서"
       title="예배 순서"
-      description="순서 편집 화면은 자막과 발표 자료를 호출하는 중심이 됩니다."
+      description="예배 순서 입력 화면은 자막과 발표를 연결하는 중심 영역입니다."
       highlights={[
         "순서별 자막 입력",
-        "담당자 분담 편집",
-        "향후 실시간 협업 확장",
+        "현재 예배의 진행 상태 확인",
+        "후속 화면으로 자연스럽게 연결",
       ]}
       actions={[
         { href: "/worship/subtitles/input", label: "자막 입력", variant: "secondary" },

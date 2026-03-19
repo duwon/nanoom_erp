@@ -22,113 +22,113 @@ type NavSection = {
 
 const NAV_SECTIONS: NavSection[] = [
   {
-    label: "Dashboard",
+    label: "대시보드",
     items: [
       {
         href: "/dashboard",
-        label: "Overview",
-        description: "Daily starting point",
+        label: "개요",
+        description: "매일 시작하는 화면",
         roles: ["master", "final_approver", "editor", "member"],
         exact: true,
       },
     ],
   },
   {
-    label: "UDMS",
+    label: "문서 관리",
     items: [
       {
         href: "/udms/documents",
-        label: "Documents",
-        description: "Files and revisions",
+        label: "문서",
+        description: "파일과 버전 관리",
         roles: ["master", "final_approver", "editor", "member"],
       },
       {
         href: "/udms/boards",
-        label: "Boards",
-        description: "Publishing rules",
+        label: "게시판",
+        description: "게시 기준과 노출 규칙",
         roles: ["master", "final_approver", "editor", "member"],
       },
       {
         href: "/udms/shares",
-        label: "Shares",
-        description: "Collaboration",
+        label: "공유",
+        description: "협업과 공유 범위",
         roles: ["master", "final_approver", "editor", "member"],
       },
       {
         href: "/udms/approvals",
-        label: "Approvals",
-        description: "Review queue",
+        label: "결재",
+        description: "검토와 승인 대기열",
         roles: ["master", "final_approver", "editor", "member"],
       },
       {
         href: "/udms/permissions",
-        label: "Permissions",
-        description: "Access control",
+        label: "권한",
+        description: "접근 제어",
         roles: ["master", "final_approver", "editor", "member"],
       },
     ],
   },
   {
-    label: "Worship",
+    label: "예배",
     items: [
       {
         href: "/worship/orders",
-        label: "Orders",
-        description: "Service order",
+        label: "예배 순서",
+        description: "예배 순서를 준비",
         roles: ["master", "final_approver", "editor", "member"],
       },
       {
         href: "/worship/subtitles/input",
-        label: "Subtitles Input",
-        description: "Prepare subtitle content",
+        label: "자막 입력",
+        description: "자막 내용을 작성",
         roles: ["master", "final_approver", "editor", "member"],
       },
       {
         href: "/worship/subtitles/output",
-        label: "Subtitles Output",
-        description: "Send to display",
+        label: "자막 출력",
+        description: "디스플레이로 송출",
         roles: ["master", "final_approver", "editor", "member"],
       },
       {
         href: "/worship/contents",
-        label: "Contents",
-        description: "Media assets",
+        label: "콘텐츠",
+        description: "미디어 자료",
         roles: ["master", "final_approver", "editor", "member"],
       },
     ],
   },
   {
-    label: "Admin",
+    label: "관리자",
     items: [
       {
         href: "/admin",
-        label: "Home",
-        description: "Admin overview",
+        label: "관리자 홈",
+        description: "관리자 개요",
         roles: ["master"],
         exact: true,
       },
       {
         href: "/admin/users",
-        label: "Users",
-        description: "User management",
+        label: "사용자",
+        description: "사용자 관리",
         roles: ["master"],
       },
       {
         href: "/admin/permissions",
-        label: "Permissions",
-        description: "Policy management",
+        label: "권한",
+        description: "정책 관리",
         roles: ["master"],
       },
       {
         href: "/admin/boards",
-        label: "Boards",
-        description: "Board management",
+        label: "게시판",
+        description: "게시판 관리",
         roles: ["master"],
       },
       {
         href: "/admin/worship-templates",
-        label: "Worship Templates",
-        description: "Service templates",
+        label: "예배 템플릿",
+        description: "예배용 템플릿",
         roles: ["master"],
       },
     ],
@@ -136,7 +136,27 @@ const NAV_SECTIONS: NavSection[] = [
 ];
 
 function formatRole(role: UserRole) {
-  return role.replace("_", " ");
+  switch (role) {
+    case "master":
+      return "관리자";
+    case "final_approver":
+      return "최종 승인자";
+    case "editor":
+      return "편집자";
+    case "member":
+      return "일반 사용자";
+  }
+}
+
+function formatStatus(status: AuthUser["status"]) {
+  switch (status) {
+    case "pending":
+      return "승인 대기";
+    case "active":
+      return "활성";
+    case "blocked":
+      return "차단";
+  }
 }
 
 function getVisibleSections(role: UserRole) {
@@ -181,8 +201,8 @@ export function AuthenticatedShell({
   }, [pathname]);
 
   const userLabel = user.name ?? user.email;
-  const currentSection = active?.section ?? "Dashboard";
-  const currentItem = active?.item.label ?? "Overview";
+  const currentSection = active?.section ?? "대시보드";
+  const currentItem = active?.item.label ?? "개요";
 
   return (
     <div className="min-h-screen">
@@ -205,10 +225,10 @@ export function AuthenticatedShell({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-700">
-                    Nanoom ERP
+                    나눔 업무 시스템
                   </p>
                   <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-slate-900">
-                    Authenticated Shell
+                    인증 쉘
                   </h1>
                 </div>
                 <button
@@ -216,13 +236,13 @@ export function AuthenticatedShell({
                   className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 lg:hidden"
                   onClick={() => setMobileOpen(false)}
                 >
-                  Close
+                  닫기
                 </button>
               </div>
 
               <div className="mt-5 rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  Current user
+                  현재 사용자
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-900">{userLabel}</p>
                 <p className="mt-1 text-sm text-slate-600">{user.email}</p>
@@ -231,7 +251,7 @@ export function AuthenticatedShell({
                     {formatRole(user.role)}
                   </span>
                   <span className="rounded-full bg-white px-3 py-1 font-medium text-slate-700">
-                    {user.status}
+                    {formatStatus(user.status)}
                   </span>
                 </div>
               </div>
@@ -261,7 +281,7 @@ export function AuthenticatedShell({
                             <span className="font-medium">{item.label}</span>
                             {activeItem ? (
                               <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-amber-700">
-                                Active
+                                현재
                               </span>
                             ) : null}
                           </div>
@@ -277,7 +297,7 @@ export function AuthenticatedShell({
             <div className="border-t border-slate-200 p-4">
               <div className="rounded-[24px] border border-slate-200 bg-white px-4 py-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  Session
+                  세션
                 </p>
                 <p className="mt-2 text-sm text-slate-700">
                   {currentSection} / {currentItem}
@@ -299,7 +319,7 @@ export function AuthenticatedShell({
                   className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 lg:hidden"
                   onClick={() => setMobileOpen(true)}
                 >
-                  Menu
+                  메뉴
                 </button>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-700">

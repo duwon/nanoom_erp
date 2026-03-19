@@ -3,16 +3,16 @@ import { ModulePage } from "@/components/module-page";
 export default function WorshipSubtitlesOutputPage() {
   return (
     <ModulePage
-      eyebrow="Worship / Output"
-      title="예배 자막 출력"
-      description="입력된 자막을 현장 송출용 화면과 연결합니다."
+      eyebrow="예배 / 출력"
+      title="자막 출력"
+      description="입력된 자막을 예배 현장 디스플레이로 송출하는 화면입니다."
       highlights={[
-        "읽기 전용 출력",
-        "실시간 갱신 대상",
-        "display 화면과 연결",
+        "출력 전용 화면",
+        "실시간 상태 반영",
+        "디스플레이 화면과 연결",
       ]}
       actions={[
-        { href: "/display", label: "Display 열기", variant: "secondary" },
+        { href: "/display", label: "디스플레이 열기", variant: "secondary" },
       ]}
     />
   );

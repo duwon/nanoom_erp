@@ -6,23 +6,23 @@ import { getAttentionRedirect, getCurrentUserServer, getDefaultAuthenticatedPath
 const cards = [
   {
     href: "/login",
-    title: "Login",
-    description: "Start authentication with the configured OAuth provider.",
+    title: "로그인",
+    description: "설정된 인증 공급자로 인증을 시작합니다.",
   },
   {
     href: "/dashboard",
-    title: "Dashboard",
-    description: "Authenticated users land here for daily work.",
+    title: "대시보드",
+    description: "인증 사용자가 일상 업무를 시작하는 화면입니다.",
   },
   {
     href: "/udms/documents",
-    title: "UDMS",
-    description: "Document, board, share, and approval workflows.",
+    title: "문서 관리",
+    description: "문서, 게시판, 공유, 결재 흐름을 다룹니다.",
   },
   {
     href: "/display",
-    title: "Display",
-    description: "Fullscreen worship output view.",
+    title: "디스플레이",
+    description: "예배 출력용 전체 화면입니다.",
   },
 ];
 
@@ -43,17 +43,17 @@ export default async function PublicHomePage() {
         <div className="grid gap-10 px-6 py-8 md:px-8 md:py-10 lg:grid-cols-[1.15fr_0.85fr] lg:px-12 lg:py-14">
           <div className="space-y-6">
             <div className="inline-flex rounded-full border border-amber-200 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-amber-700">
-              Nanoom ERP
+              나눔 업무 시스템
             </div>
             <div className="space-y-4">
               <h1 className="font-display text-4xl font-semibold tracking-tight text-slate-900 md:text-6xl">
-                Public entry for authenticated work
+                인증 업무를 위한 공개 진입점
                 <br />
-                and live display flow
+                그리고 실시간 디스플레이 흐름
               </h1>
               <p className="max-w-2xl text-base leading-8 text-slate-600 md:text-lg">
-                The home page stays public, while authenticated users are moved into the workspace
-                shell. Display remains outside the shell so it can stay fullscreen and focused.
+                홈 화면은 공개 상태로 유지하고, 인증 사용자는 업무 쉘로 이동합니다. 디스플레이는
+                전체 화면과 집중도를 위해 쉘 밖에 둡니다.
               </p>
             </div>
 
@@ -62,13 +62,13 @@ export default async function PublicHomePage() {
                 href="/login"
                 className="rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white"
               >
-                Sign in
+                로그인
               </Link>
               <Link
                 href="/dashboard"
                 className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-medium text-slate-700"
               >
-                Open dashboard
+                대시보드 열기
               </Link>
             </div>
           </div>
@@ -81,7 +81,7 @@ export default async function PublicHomePage() {
                 className="panel rounded-[28px] p-5 transition-transform duration-200 hover:-translate-y-1"
               >
                 <div className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-                  Open
+                  열기
                 </div>
                 <h2 className="mt-3 font-display text-2xl font-semibold text-slate-900">
                   {card.title}

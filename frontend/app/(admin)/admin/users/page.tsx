@@ -6,8 +6,22 @@ import { ModulePage } from "@/components/module-page";
 import { listAdminUsers, updateAdminUser } from "@/lib/api";
 import type { AuthUser, UserRole, UserStatus } from "@/lib/types";
 
-const roleOptions: UserRole[] = ["master", "final_approver", "editor", "member"];
-const statusOptions: UserStatus[] = ["pending", "active", "blocked"];
+const roleOptions: Array<{ value: UserRole; label: string }> = [
+  { value: "master", label: "관리자" },
+  { value: "final_approver", label: "최종 승인자" },
+  { value: "editor", label: "편집자" },
+  { value: "member", label: "일반 사용자" },
+];
+
+const statusOptions: Array<{ value: UserStatus; label: string }> = [
+  { value: "pending", label: "승인 대기" },
+  { value: "active", label: "활성" },
+  { value: "blocked", label: "차단" },
+];
+
+function formatSocialProvider(value: AuthUser["socialProvider"]) {
+  return value === "google" ? "구글" : "카카오";
+}
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AuthUser[]>([]);
@@ -70,7 +84,7 @@ export default function AdminUsersPage() {
       }));
       setMessage("사용자 상태를 저장했습니다.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "사용자 저장에 실패했습니다.");
+      setMessage(error instanceof Error ? error.message : "사용자 상태 저장에 실패했습니다.");
     } finally {
       setSavingUserId(null);
     }
@@ -78,13 +92,13 @@ export default function AdminUsersPage() {
 
   return (
     <ModulePage
-      eyebrow="Admin / Users"
+      eyebrow="관리자 / 사용자"
       title="사용자 관리"
-      description="소셜 로그인 계정의 승인 상태와 역할을 조정합니다."
+      description="로그인 계정의 역할과 상태를 조정합니다."
       highlights={[
         `승인 대기 ${pendingCount}명`,
-        "master만 관리자 접근 허용",
-        "pending/active/blocked 상태 전환",
+        "master만 관리자 권한 변경 가능",
+        "pending / active / blocked 상태 전환",
       ]}
       actions={[{ href: "/admin", label: "관리자 홈" }]}
     >
@@ -108,7 +122,7 @@ export default function AdminUsersPage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-                  {user.socialProvider}
+                  {formatSocialProvider(user.socialProvider)}
                 </p>
                 <h2 className="mt-2 font-display text-2xl font-semibold text-slate-900">
                   {user.name ?? "이름 미입력"}
@@ -119,7 +133,7 @@ export default function AdminUsersPage() {
                 </p>
               </div>
               <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-600">
-                {user.status}
+                {user.status === "pending" ? "승인 대기" : user.status === "active" ? "활성" : "차단"}
               </div>
             </div>
 
@@ -132,8 +146,8 @@ export default function AdminUsersPage() {
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-amber-400"
                 >
                   {roleOptions.map((role) => (
-                    <option key={role} value={role}>
-                      {role}
+                    <option key={role.value} value={role.value}>
+                      {role.label}
                     </option>
                   ))}
                 </select>
@@ -149,8 +163,8 @@ export default function AdminUsersPage() {
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-amber-400"
                 >
                   {statusOptions.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
+                    <option key={status.value} value={status.value}>
+                      {status.label}
                     </option>
                   ))}
                 </select>
@@ -159,7 +173,7 @@ export default function AdminUsersPage() {
 
             <div className="mt-5 flex items-center justify-between gap-3">
               <p className="text-xs tracking-[0.2em] text-slate-500">
-                승인일: {user.approvedAt ?? "미승인"}
+                승인 시각: {user.approvedAt ?? "미승인"}
               </p>
               <button
                 type="button"

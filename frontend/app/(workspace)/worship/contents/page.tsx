@@ -3,12 +3,12 @@ import { ModulePage } from "@/components/module-page";
 export default function WorshipContentsPage() {
   return (
     <ModulePage
-      eyebrow="Worship / Contents"
-      title="자막 컨텐츠"
-      description="찬양 전광판, 인도자 모니터, 배경 영상, PPT, 설교자료를 묶는 저장소입니다."
+      eyebrow="예배 / 콘텐츠"
+      title="예배 콘텐츠"
+      description="사진, 영상, PPT, 배경 자료를 관리하는 저장 공간입니다."
       highlights={[
-        "자막 입력 시 불러오기",
-        "재사용 가능한 미디어 자산",
+        "예배 입력용 자료 관리",
+        "자주 쓰는 미디어 분류",
         "파일과 메타데이터 분리 관리",
       ]}
       actions={[

@@ -14,14 +14,14 @@ function buildShortcuts(role: AuthUser["role"]): Shortcut[] {
   const shortcuts: Shortcut[] = [
     {
       href: "/udms/documents",
-      label: "Open Documents",
-      description: "Review shared files, revisions, and attachments.",
+      label: "문서 열기",
+      description: "공유 파일, 버전, 첨부를 확인합니다.",
       variant: "primary",
     },
     {
       href: "/worship/orders",
-      label: "Service Orders",
-      description: "Continue the worship preparation flow.",
+      label: "예배 순서",
+      description: "예배 준비 흐름을 이어갑니다.",
       variant: "secondary",
     },
   ];
@@ -29,15 +29,15 @@ function buildShortcuts(role: AuthUser["role"]): Shortcut[] {
   if (role === "master") {
     shortcuts.push({
       href: "/admin/users",
-      label: "Admin Users",
-      description: "Check approvals, roles, and account status.",
+      label: "사용자 관리",
+      description: "승인, 역할, 계정 상태를 확인합니다.",
       variant: "secondary",
     });
   } else {
     shortcuts.push({
       href: "/udms/approvals",
-      label: "Approvals",
-      description: "Move documents through the review queue.",
+      label: "결재",
+      description: "문서를 검토 대기열로 넘깁니다.",
       variant: "secondary",
     });
   }
@@ -49,18 +49,18 @@ function buildNextActions(role: AuthUser["role"]) {
   if (role === "master") {
     return [
       {
-        title: "Review user approvals",
-        description: "Check pending accounts and confirm role assignments.",
+        title: "사용자 승인 검토",
+        description: "대기 중인 계정과 역할을 확인합니다.",
         href: "/admin/users",
       },
       {
-        title: "Audit the board setup",
-        description: "Verify how boards map to document publishing rules.",
+        title: "게시판 설정 점검",
+        description: "게시판과 문서 노출 규칙을 확인합니다.",
         href: "/admin/boards",
       },
       {
-        title: "Check worship templates",
-        description: "Confirm the latest template set before service prep.",
+        title: "예배 템플릿 확인",
+        description: "예배 준비 전에 최신 템플릿을 확인합니다.",
         href: "/admin/worship-templates",
       },
     ];
@@ -68,21 +68,49 @@ function buildNextActions(role: AuthUser["role"]) {
 
   return [
     {
-      title: "Open the latest documents",
-      description: "Continue where the team left off in UDMS.",
+      title: "최근 문서 열기",
+      description: "팀이 마지막으로 보던 문서부터 이어갑니다.",
       href: "/udms/documents",
     },
     {
-      title: "Prepare the worship order",
-      description: "Move the next service flow into position.",
+      title: "예배 순서 준비",
+      description: "다음 예배 흐름을 배치합니다.",
       href: "/worship/orders",
     },
     {
-      title: "Review the approval queue",
-      description: "Work through documents that need a decision.",
+      title: "결재 대기 검토",
+      description: "결정이 필요한 문서를 처리합니다.",
       href: "/udms/approvals",
     },
   ];
+}
+
+function formatRole(role: AuthUser["role"]) {
+  switch (role) {
+    case "master":
+      return "관리자";
+    case "final_approver":
+      return "최종 승인자";
+    case "editor":
+      return "편집자";
+    case "member":
+      return "일반 사용자";
+  }
+}
+
+function formatStatus(status: AuthUser["status"]) {
+  switch (status) {
+    case "pending":
+      return "승인 대기";
+    case "active":
+      return "활성";
+    case "blocked":
+      return "차단";
+  }
+}
+
+function formatSocialProvider(provider: AuthUser["socialProvider"]) {
+  return provider === "google" ? "구글" : "카카오";
 }
 
 export default async function DashboardPage() {
@@ -97,52 +125,52 @@ export default async function DashboardPage() {
         <div className="grid gap-8 px-6 py-7 lg:grid-cols-[1.15fr_0.85fr] lg:px-10 lg:py-10">
           <div className="space-y-6">
             <div className="inline-flex rounded-full border border-amber-200 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-amber-700">
-              Dashboard
+              대시보드
             </div>
 
             <div className="space-y-4">
               <h1 className="font-display text-4xl font-semibold tracking-tight text-slate-900 md:text-5xl">
-                Welcome back, {displayName}
+                다시 오신 것을 환영합니다, {displayName}
               </h1>
               <p className="max-w-2xl text-base leading-8 text-slate-600 md:text-lg">
-                This is the starting point for daily work. Use the shell on the left to move
-                between UDMS, Worship, and Admin without losing your place.
+                오늘 업무를 시작하는 화면입니다. 왼쪽 쉘을 사용해 문서 관리, 예배, 관리자 화면을
+                이동해도 현재 위치가 유지됩니다.
               </p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-[24px] border border-slate-200 bg-white/80 px-4 py-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  Account
+                  계정
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-900">{user.email}</p>
-                <p className="mt-1 text-sm text-slate-600">{user.socialProvider}</p>
+                <p className="mt-1 text-sm text-slate-600">{formatSocialProvider(user.socialProvider)}</p>
               </div>
               <div className="rounded-[24px] border border-slate-200 bg-white/80 px-4 py-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  Profile
+                  프로필
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {user.position ?? "Position not set"}
+                  {user.position ?? "직분 미입력"}
                 </p>
                 <p className="mt-1 text-sm text-slate-600">
-                  {user.department ?? "Department not set"}
+                  {user.department ?? "부서 미입력"}
                 </p>
               </div>
               <div className="rounded-[24px] border border-slate-200 bg-white/80 px-4 py-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  Role
+                  역할
                 </p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">{user.role}</p>
-                <p className="mt-1 text-sm text-slate-600">Access level for authenticated shell</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900">{formatRole(user.role)}</p>
+                <p className="mt-1 text-sm text-slate-600">인증 쉘에서 사용하는 접근 수준입니다.</p>
               </div>
               <div className="rounded-[24px] border border-slate-200 bg-white/80 px-4 py-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  Status
+                  상태
                 </p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">{user.status}</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900">{formatStatus(user.status)}</p>
                 <p className="mt-1 text-sm text-slate-600">
-                  {user.approvedAt ? `Approved at ${user.approvedAt}` : "Awaiting approval info"}
+                  {user.approvedAt ? `승인 시각 ${user.approvedAt}` : "승인 정보 대기"}
                 </p>
               </div>
             </div>
@@ -151,7 +179,7 @@ export default async function DashboardPage() {
           <div className="space-y-4">
             <div className="rounded-[28px] border border-slate-200 bg-white/80 p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                Quick actions
+                빠른 실행
               </p>
               <div className="mt-4 grid gap-3">
                 {shortcuts.map((item) => (
@@ -175,14 +203,14 @@ export default async function DashboardPage() {
 
             <div className="rounded-[28px] border border-slate-200 bg-white/80 p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                Session summary
+                세션 요약
               </p>
               <div className="mt-4 grid gap-3">
                 <div className="rounded-[20px] bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                  Start here, then continue into the module that needs attention.
+                  여기서 시작한 뒤, 필요한 모듈로 이어서 이동합니다.
                 </div>
                 <div className="rounded-[20px] bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                  The shell keeps navigation visible on desktop and mobile.
+                  쉘은 데스크톱과 모바일 모두에서 내비게이션을 유지합니다.
                 </div>
               </div>
             </div>
@@ -198,7 +226,7 @@ export default async function DashboardPage() {
             className="panel rounded-[28px] p-5 transition-transform duration-200 hover:-translate-y-1"
           >
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-              Next action
+              다음 작업
             </p>
             <h2 className="mt-3 font-display text-2xl font-semibold text-slate-900">
               {item.title}
