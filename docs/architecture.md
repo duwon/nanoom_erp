@@ -104,6 +104,17 @@ frontend/app/
 - OAuth callback에서 `backend/app/modules/auth/router.py`가 최종 착지 경로를 결정한다.
 - onboarding 완료 시 `frontend/components/onboarding-form.tsx`가 `/dashboard` 또는 `/admin`으로 이동시킨다.
 
+리다이렉트 기준:
+
+| 상태 | 기본 경로 |
+| --- | --- |
+| 비로그인 | `/` 또는 `/login` |
+| 프로필 미완성 | `/onboarding` |
+| `pending` | `/pending` |
+| `blocked` | `/blocked` |
+| `active` 일반 사용자 | `/dashboard` |
+| `active` `master` | `/admin` |
+
 ### 3.3 공통 shell 범위
 
 다음은 authenticated shell을 사용한다.
@@ -128,11 +139,27 @@ frontend/app/
 
 `frontend/components/authenticated-shell.tsx`는 다음 역할을 한다.
 
-- 데스크톱 sidebar 렌더링
-- 모바일 drawer 렌더링
+- 헤더 모듈 스위처 렌더링
+- 현재 모듈 기준 2단 contextual sidebar 렌더링
+- 모바일 `모듈` 패널과 `메뉴` drawer 분리
 - 현재 경로 active 상태 표시
-- 역할별 메뉴 필터링
+- 역할별 모듈 필터링
 - sign-out 노출
+
+구조 기준:
+
+- 내부 내비게이션 모델은 `module -> groups -> items` 계층형 구조다.
+- 헤더는 `Dashboard`, `UDMS`, `Worship`, `Admin` 모듈 전환만 담당한다.
+- 좌측은 현재 활성 모듈의 그룹만 보여주고, 각 그룹은 아코디언처럼 동작한다.
+- `Admin` 모듈은 `master`에게만 노출한다.
+- `Dashboard`도 독립 모듈로 취급하고, 하위 메뉴는 기존 업무 경로로 연결한다.
+
+현재 모듈 기준 메뉴:
+
+- `Dashboard`: `개요`, `나의 업무`, `바로가기`
+- `UDMS`: `문서 공간`, `협업`, `정책`
+- `Worship`: `예배 준비`, `자막 운영`, `자료 관리`
+- `Admin`: `사용자 운영`, `콘텐츠 운영`, `예배 운영`
 
 ### 4.2 Module Page
 

@@ -151,5 +151,5 @@
 - [ ] 운영용 Google OAuth 앱 등록
 - [ ] 운영용 Kakao OAuth 앱 등록
 - [ ] 운영 배포 시 `auth_cookie_secure=true` 및 HTTPS 적용
-- [ ] 레이아웃 셸 적용 후 `/dashboard` 기본 진입 전환
-- [ ] 모바일 drawer 기반 사이드바 적용
+- [x] 레이아웃 셸 적용 후 `/dashboard` 기본 진입 전환
+- [x] 모바일 drawer 기반 사이드바 적용
