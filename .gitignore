@@ -1,0 +1,8 @@
+.env
+backend/.pytest_cache/
+backend/__pycache__/
+backend/.venv/
+frontend/.next/
+frontend/node_modules/
+storage/mongo/*
+!storage/mongo/.gitkeep
