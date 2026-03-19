@@ -25,7 +25,7 @@ export function ModulePage({
   children,
 }: ModulePageProps) {
   return (
-    <main className="mx-auto min-h-screen max-w-7xl px-4 py-8 md:px-6 lg:px-8">
+    <section className="mx-auto max-w-7xl px-4 py-8 md:px-6 lg:px-8">
       <section className="panel-strong overflow-hidden rounded-[32px]">
         <div className="grid gap-8 px-6 py-8 md:px-8 md:py-10 lg:grid-cols-[1.15fr_0.85fr] lg:px-12 lg:py-14">
           <div className="space-y-5">
@@ -76,6 +76,6 @@ export function ModulePage({
           <div className="space-y-4">{children}</div>
         </div>
       </section>
-    </main>
+    </section>
   );
 }

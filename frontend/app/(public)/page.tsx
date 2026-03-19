@@ -1,48 +1,40 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
-import { getAttentionRedirect, getCurrentUserServer } from "@/lib/server-auth";
+import { getAttentionRedirect, getCurrentUserServer, getDefaultAuthenticatedPath } from "@/lib/server-auth";
 
 const cards = [
   {
     href: "/login",
-    title: "로그인",
-    description: "httpOnly 쿠키 기반 인증으로 시작합니다.",
+    title: "Login",
+    description: "Start authentication with the configured OAuth provider.",
+  },
+  {
+    href: "/dashboard",
+    title: "Dashboard",
+    description: "Authenticated users land here for daily work.",
   },
   {
     href: "/udms/documents",
     title: "UDMS",
-    description: "게시판, 문서, 첨부파일, 공유, 결재를 묶어 관리합니다.",
-  },
-  {
-    href: "/worship/orders",
-    title: "예배 순서",
-    description: "사용자가 예배 순서를 편집하는 진입점입니다.",
-  },
-  {
-    href: "/worship/subtitles/input",
-    title: "자막 입력",
-    description: "담당 순서의 자막을 입력하는 화면입니다.",
-  },
-  {
-    href: "/admin",
-    title: "관리자",
-    description: "사용자, 게시판, 템플릿, 권한을 관리합니다.",
+    description: "Document, board, share, and approval workflows.",
   },
   {
     href: "/display",
     title: "Display",
-    description: "실시간 예배 송출 화면입니다.",
+    description: "Fullscreen worship output view.",
   },
 ];
 
-export default async function WorkspaceHomePage() {
+export default async function PublicHomePage() {
   const currentUser = await getCurrentUserServer();
+
   if (currentUser) {
     const attentionRedirect = getAttentionRedirect(currentUser);
     if (attentionRedirect) {
       redirect(attentionRedirect);
     }
+    redirect(getDefaultAuthenticatedPath(currentUser));
   }
 
   return (
@@ -55,14 +47,13 @@ export default async function WorkspaceHomePage() {
             </div>
             <div className="space-y-4">
               <h1 className="font-display text-4xl font-semibold tracking-tight text-slate-900 md:text-6xl">
-                로그인, UDMS, 예배 순서와 자막을
+                Public entry for authenticated work
                 <br />
-                한 흐름으로 묶는 시작점
+                and live display flow
               </h1>
               <p className="max-w-2xl text-base leading-8 text-slate-600 md:text-lg">
-                현재는 단순한 출발점이지만, 내부 구조는 auth, udms, worship, admin으로
-                분리 가능한 형태로 준비되어 있습니다. 예배 템플릿 관리는 관리자 영역에서
-                처리합니다.
+                The home page stays public, while authenticated users are moved into the workspace
+                shell. Display remains outside the shell so it can stay fullscreen and focused.
               </p>
             </div>
 
@@ -71,13 +62,13 @@ export default async function WorkspaceHomePage() {
                 href="/login"
                 className="rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white"
               >
-                로그인 열기
+                Sign in
               </Link>
               <Link
-                href="/admin"
+                href="/dashboard"
                 className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-medium text-slate-700"
               >
-                관리자 열기
+                Open dashboard
               </Link>
             </div>
           </div>

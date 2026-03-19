@@ -9,10 +9,10 @@ export function isProfileComplete(user: Pick<AuthUser, "name" | "position" | "de
 }
 
 export function getDefaultAuthenticatedPath(user: Pick<AuthUser, "role">) {
-  return user.role === "master" ? "/admin" : "/";
+  return user.role === "master" ? "/admin" : "/dashboard";
 }
 
-export function getAttentionRedirect(user: AuthUser, requestedPath = "/") {
+export function getAttentionRedirect(user: AuthUser, requestedPath = "/dashboard") {
   if (!isProfileComplete(user)) {
     return "/onboarding";
   }
@@ -66,7 +66,7 @@ export async function redirectAuthenticatedFromAuthPage() {
   redirect(getDefaultAuthenticatedPath(user));
 }
 
-export async function requireWorkspaceUser(requestedPath = "/") {
+export async function requireWorkspaceUser(requestedPath = "/dashboard") {
   const user = await getCurrentUserServer();
   if (!user) {
     redirect("/login");

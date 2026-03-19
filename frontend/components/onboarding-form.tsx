@@ -25,7 +25,7 @@ export function OnboardingForm({ initialUser }: OnboardingFormProps) {
 
     try {
       const user = await updateMyProfile({ name, position, department });
-      router.push(user.status === "active" ? (user.role === "master" ? "/admin" : "/") : "/pending");
+      router.push(user.status === "active" ? (user.role === "master" ? "/admin" : "/dashboard") : "/pending");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "프로필 저장에 실패했습니다.");

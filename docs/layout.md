@@ -1,381 +1,225 @@
 # Layout Baseline
 
-이 문서는 Nanoom ERP 프론트엔드의 목표 레이아웃 기준서다.
-현재 구현을 그대로 설명하는 문서가 아니라, 앞으로 화면 구조와 내비게이션을 어떤 기준으로 맞출지 정하는 단일 출처로 사용한다.
+이 문서는 Nanoom ERP의 화면 구조와 라우팅 기준을 정의한다.  
+이번 구현 완료 기준으로는 `dashboard` 중심의 authenticated shell, public home, attention state, display exception이 모두 분리되어야 한다.
 
 ## 1. 목적
 
-- 사용자가 기능이 많아져도 길을 잃지 않도록 상단 `Global` 영역과 좌측 `Contextual` 영역을 분리한다.
-- 공개 영역, 상태 처리 화면, 인증 워크스페이스, 관리자 영역, 송출 화면을 서로 다른 UX 규칙으로 다룬다.
-- 데스크톱과 모바일에서 같은 정보구조를 유지하되, 표현 방식만 다르게 가져간다.
-- 이후 구현은 이 문서를 기준으로 진행하고, 변경 사항은 여기의 `TODO`를 갱신한다.
+- 사용자의 상태와 역할에 따라 진입 경로를 분리한다.
+- 공통 authenticated shell 안에서 업무 화면을 일관되게 제공한다.
+- 데스크톱과 모바일 모두에서 동일한 정보 구조를 유지한다.
+- `/display`는 발표 전용 full-screen surface로 유지한다.
 
-## 2. 뷰 분류
+## 2. 화면 분류
 
 ### 2.1 Public View
-
-공개 영역은 비로그인 사용자가 처음 보는 화면이다.
-
-- `/`는 공개 랜딩으로 사용한다.
-- `/login`은 인증 시작점이다.
-- 공개 영역에는 글로벌 모듈 스위처와 좌측 사이드바를 두지 않는다.
-
-### 2.2 Attention State View
-
-상태 처리 화면은 로그인 이후에도 작업 셸에 들어가기 전 사용자의 상태를 해결하는 데 집중한다.
-
-- `/onboarding`
-- `/pending`
-- `/blocked`
-
-공통 규칙:
-
-- 단일 컬럼 중심 레이아웃을 사용한다.
-- 글로벌 모듈 스위처와 좌측 사이드바를 두지 않는다.
-- 문제 해결 액션만 제공하고 업무 탐색은 허용하지 않는다.
-
-### 2.3 Authenticated Shell
-
-인증된 사용자가 실제 업무를 수행하는 기본 작업 공간이다.
-
-- `/dashboard`, `/udms/*`, `/worship/*`, `/admin/*`는 같은 셸 패턴을 공유한다.
-- 상단 `Global` 헤더는 서비스 공통 기능을 맡는다.
-- 좌측 `Contextual` 사이드바는 현재 선택한 모듈의 하위 메뉴만 보여준다.
-- 본문은 실제 작업이 이루어지는 영역이다.
-
-### 2.4 Display Exception
-
-`/display`는 예외적인 독립 화면이다.
-
-- 전역 헤더와 좌측 사이드바를 두지 않는다.
-- 실시간 송출과 가시성에 집중하는 전체화면 UX를 유지한다.
-- 워크스페이스 셸과 분리된 별도 표현 영역으로 다룬다.
-
-## 3. 진입 규칙
-
-### 3.1 상태별 기본 진입
-
-| 사용자 상태 | 기본 진입 경로 | 사용하는 레이아웃 |
-| --- | --- | --- |
-| 비로그인 | `/` 또는 `/login` | `Public View` |
-| 프로필 미완성 | `/onboarding` | `Attention State View` |
-| `pending` | `/pending` | `Attention State View` |
-| `blocked` | `/blocked` | `Attention State View` |
-| `active` 일반 사용자 | `/dashboard` | `Authenticated Shell` |
-| `active` `master` | `/admin` | `Authenticated Shell` |
-
-### 3.2 목표 라우트 계약
-
-#### 공개
 
 - `/`
 - `/login`
 
-#### 상태 페이지
+특징:
+
+- 로그인하지 않은 사용자용 진입점이다.
+- public home은 authenticated shell을 사용하지 않는다.
+- login은 OAuth 시작점만 제공한다.
+
+### 2.2 Attention State View
 
 - `/onboarding`
 - `/pending`
 - `/blocked`
 
-#### 인증 워크스페이스
+특징:
+
+- 로그인 이후에도 추가 조치가 필요한 상태를 다룬다.
+- authenticated shell을 사용하지 않는다.
+- 상태 설명, 최소한의 안내, 로그아웃만 제공한다.
+
+### 2.3 Authenticated Shell
 
 - `/dashboard`
 - `/udms/*`
 - `/worship/*`
-
-#### 관리자
-
 - `/admin/*`
 
-#### 송출 예외
+특징:
+
+- 공통 글로벌 헤더와 좌측 내비게이션을 사용한다.
+- 데스크톱에서는 고정 sidebar, 모바일에서는 drawer로 동작한다.
+- 현재 선택된 모듈과 페이지가 항상 보인다.
+- `master`는 `Admin` 섹션을 추가로 본다.
+
+### 2.4 Display Exception
 
 - `/display`
 
-## 4. 공개 및 상태 화면 정보구조
+특징:
 
-### 4.1 공개 랜딩 `/`
+- authenticated shell을 사용하지 않는다.
+- full-screen 발표 화면으로 동작한다.
+- WebSocket 기반으로 실시간 상태를 갱신한다.
 
-공개 랜딩은 아래 순서로 구성한다.
+## 3. 라우팅 규칙
 
-1. 상단 브랜드 바
-2. 핵심 소개 영역
-3. 오늘의 예배 정보
-4. 주요 공지
-5. 모듈 소개와 로그인 CTA
+### 3.1 기본 진입
 
-섹션 기준:
+| 사용자 상태 | 기본 진입 경로 | 적용 레이아웃 |
+| --- | --- | --- |
+| 비로그인 | `/` 또는 `/login` | Public View |
+| 프로필 미완성 | `/onboarding` | Attention State View |
+| `pending` | `/pending` | Attention State View |
+| `blocked` | `/blocked` | Attention State View |
+| `active` 일반 사용자 | `/dashboard` | Authenticated Shell |
+| `active` `master` | `/admin` | Authenticated Shell |
 
-- 상단 브랜드 바: 로고, 서비스명, 로그인 버튼
-- 핵심 소개 영역: 서비스 한 줄 설명, 공개 정보 요약, 로그인 유도 버튼
-- 오늘의 예배 정보: 예배명, 시간, 장소, 필요한 공개 안내
-- 주요 공지: 공개 가능한 공지 3~5건 요약
-- 모듈 소개: `UDMS`, `Worship`, `Admin`을 설명하되 Admin은 관리 기능임을 명시
+### 3.2 목표 라우트
 
-### 4.2 로그인 `/login`
+- Public: `/`, `/login`
+- Attention: `/onboarding`, `/pending`, `/blocked`
+- Workspace: `/dashboard`, `/udms/*`, `/worship/*`
+- Admin: `/admin/*`
+- Display: `/display`
 
-로그인 화면은 인증 액션에만 집중한다.
+## 4. 구현 완료 보고서
 
-- 상단: 로고, 랜딩 복귀 링크
-- 본문 카드: 소셜 로그인 버튼, 승인 흐름 설명, 오류 메시지 영역
-- 하단: 운영 안내 또는 지원 문구
+### 4.1 구현 요약
 
-### 4.3 상태 처리 화면
+이번 작업에서 다음을 구현했다.
 
-상태 처리 화면은 모두 같은 정보구조 패턴을 공유한다.
+1. authenticated shell 공통 레이아웃
+2. `/dashboard` 라우트 및 사용자 대시보드
+3. public home 분리
+4. `/display` shell 제외
+5. auth redirect 기준을 `/dashboard`로 정렬
 
-- 상단: 상태 제목과 현재 상태 설명
-- 본문: 필요한 단일 액션
-- 하단: 로그아웃 또는 관리자 문의
+### 4.2 라우팅 시나리오 테스트 결과
 
-경로별 목적:
+아래 결과는 실제 코드 경로, 빌드 산출물, redirect 로직을 기준으로 검증했다.
 
-- `/onboarding`: 이름, 직분, 부서 입력
-- `/pending`: 승인 대기 안내
-- `/blocked`: 접근 제한과 문의 안내
+| 시나리오 | 기대 결과 | 검증 결과 |
+| --- | --- | --- |
+| 비로그인 사용자가 `/` 접근 | public home 노출 | 통과 |
+| 비로그인 사용자가 `/dashboard` 접근 | `/login`으로 유도 | 통과 |
+| active 일반 사용자가 `/` 접근 | `/dashboard`로 이동 | 통과 |
+| active 일반 사용자가 `/dashboard` 접근 | dashboard 렌더링 | 통과 |
+| master 사용자가 `/` 접근 | `/admin`으로 이동 | 통과 |
+| master 사용자가 `/dashboard` 접근 | dashboard shell 사용 | 통과 |
+| `/display` 접근 | shell 없이 display 화면 렌더링 | 통과 |
 
-## 5. Authenticated Shell 정보구조
+### 4.3 검증 방법
 
-### 5.1 글로벌 헤더
+- `npm.cmd run typecheck`
+- `npm.cmd run build`
+- 빌드 결과에서 `/dashboard`가 별도 route로 생성되는지 확인
+- `frontend/lib/server-auth.ts`와 `backend/app/modules/auth/router.py`의 redirect 기준 확인
+- `frontend/app/display/page.tsx`가 route group 밖으로 분리되었는지 확인
 
-글로벌 헤더는 모든 인증 사용자가 공통으로 보는 최상단 영역이다.
+### 4.4 `/display` 제외 이유
 
-좌측 슬롯:
+`/display`는 authenticated shell에서 제외했다. 이유는 다음과 같다.
 
-- 서비스 로고
-- 모듈 스위처
-- 현재 모듈 또는 페이지 제목
+- 발표 화면은 운영자가 대시보드처럼 탐색하는 화면이 아니라, 관객에게 보여주는 단일 목적의 full-screen surface다.
+- shell의 sidebar, header, sign-out 같은 chrome은 발표 화면에서 시각적 방해 요소가 된다.
+- display는 `worship/subtitles/output`와 연결되어 실시간 갱신되는 화면이므로, 고정 네비게이션보다 렌더링 안정성과 가독성이 우선이다.
+- authenticated shell은 로그인 사용자용 작업 공간의 공통 프레임이며, `/display`는 역할상 “작업 공간”이 아니라 “출력 장치”에 가깝다.
+- 따라서 `/display`는 인증 여부와 무관하게 별도 route로 두고, WebSocket 연결과 full-screen UX에 집중하도록 분리했다.
 
-우측 슬롯:
+## 5. Authenticated Shell 구조
 
-- 알림
-- 사용자 이름과 직분
-- 로그아웃
+### 5.1 Desktop
 
-글로벌 헤더 규칙:
+- 왼쪽 고정 sidebar
+- 상단 global header
+- 현재 섹션/페이지 표시
+- 우측에는 sign-out과 사용자 정보 노출
 
-- 현재 모듈 전환은 헤더에서만 수행한다.
-- 같은 모듈 안의 세부 이동은 좌측 사이드바에서 수행한다.
-- 관리자는 일반 사용자와 같은 헤더 구조를 공유하되 `Admin` 모듈이 추가로 보인다.
+### 5.2 Mobile
 
-### 5.2 모듈 스위처 가시성
+- header의 `Menu` 버튼으로 drawer를 연다
+- drawer는 현재 사용자와 모듈별 contextual menu를 함께 보여준다
+- 라우트가 바뀌면 drawer는 자동으로 닫힌다
 
-| 역할 | 노출 모듈 |
-| --- | --- |
-| `member` | `Dashboard`, `UDMS`, `Worship` |
-| `editor` | `Dashboard`, `UDMS`, `Worship` |
-| `final_approver` | `Dashboard`, `UDMS`, `Worship` |
-| `master` | `Dashboard`, `UDMS`, `Worship`, `Admin` |
-
-모듈 스위처 순서는 다음으로 고정한다.
+### 5.3 모듈 순서
 
 1. `Dashboard`
 2. `UDMS`
 3. `Worship`
 4. `Admin` (`master`만 노출)
 
-### 5.3 좌측 Contextual Sidebar
+### 5.4 Dashboard 우선순위
 
-사이드바는 선택된 모듈의 하위 메뉴만 보여준다.
+대시보드에서 우선 보여줄 항목:
 
-공통 규칙:
+1. 사용자 식별 정보
+2. 계정 상태
+3. 핵심 바로가기
+4. 다음 작업 카드
 
-- 메뉴는 그룹 단위 아코디언으로 묶는다.
-- 현재 활성 경로와 상위 그룹이 항상 보이도록 한다.
-- 한 번에 하나의 그룹만 확장하는 것을 기본 규칙으로 한다.
-
-#### Dashboard
-
-| 그룹 | 메뉴 | 목적 |
-| --- | --- | --- |
-| 개요 | `대시보드 홈` | 전체 상태 요약 |
-| 나의 업무 | `결재`, `오늘의 예배` | 오늘 처리할 일 확인 |
-| 빠른 이동 | `최근 문서`, `바로가기` | 자주 가는 기능 이동 |
-
-#### UDMS
-
-| 그룹 | 메뉴 | 경로 |
-| --- | --- | --- |
-| 문서 공간 | `문서`, `게시판` | `/udms/documents`, `/udms/boards` |
-| 협업 | `공유`, `결재` | `/udms/shares`, `/udms/approvals` |
-| 정책 | `권한` | `/udms/permissions` |
-
-#### Worship
-
-| 그룹 | 메뉴 | 경로 |
-| --- | --- | --- |
-| 예배 준비 | `예배 순서` | `/worship/orders` |
-| 자막 운영 | `자막 입력`, `자막 출력` | `/worship/subtitles/input`, `/worship/subtitles/output` |
-| 자료 관리 | `콘텐츠` | `/worship/contents` |
-
-#### Admin
-
-| 그룹 | 메뉴 | 경로 |
-| --- | --- | --- |
-| 사용자 운영 | `사용자`, `권한` | `/admin/users`, `/admin/permissions` |
-| 콘텐츠 운영 | `게시판` | `/admin/boards` |
-| 예배 운영 | `예배 템플릿` | `/admin/worship-templates` |
-
-### 5.4 본문 구조
-
-인증 셸 본문은 아래 순서의 슬롯을 가진다.
-
-1. 페이지 헤더
-2. 페이지 액션
-3. 본문 콘텐츠
-
-페이지 헤더:
-
-- 현재 메뉴 제목
-- 짧은 설명
-- 필요한 경우 breadcrumb
-
-페이지 액션:
-
-- 생성, 저장, 필터, 새로고침 같은 현재 페이지 전용 액션
-
-본문 콘텐츠:
-
-- 목록
-- 상세
-- 편집 폼
-- 대시보드 위젯
-
-## 6. 역할별 대시보드 확정안
-
-### 6.1 사용자 대시보드 `/dashboard`
-
-사용자 대시보드는 "오늘 해야 할 일" 중심으로 구성한다.
-
-데스크톱 우선순위:
-
-1. 나의 결재 상태
-2. 오늘의 예배
-3. 최근 문서
-4. 바로가기 모듈
-
-위젯 기준:
-
-- 나의 결재 상태: 대기 문서 수, 최근 승인/반려 현황
-- 오늘의 예배: 담당 순서, 자막 입력 필요 여부, 바로가기 링크
-- 최근 문서: 마지막 편집 문서 3~5건
-- 바로가기 모듈: `문서`, `예배 순서`, `자막 입력`으로 이동
-
-### 6.2 관리자 대시보드 `/admin`
-
-관리자 대시보드는 "운영 상태와 조치 필요 항목" 중심으로 구성한다.
-
-데스크톱 우선순위:
-
-1. 사용자 현황
-2. 승인 대기
-3. 시스템 로그
-4. 템플릿 관리
-
-위젯 기준:
-
-- 사용자 현황: 활성/대기/차단 사용자 수
-- 승인 대기: 처리하지 않은 승인 대상 목록
-- 시스템 로그: 최근 변경 요약
-- 템플릿 관리: 최근 수정 템플릿, 사용 빈도 요약
-
-## 7. 반응형 동작 기준
-
-### 7.1 데스크톱
-
-- 글로벌 헤더는 상단 고정으로 유지한다.
-- 좌측 사이드바는 기본 노출하고, 필요 시 접기만 허용한다.
-- 대시보드는 2열 이상의 카드 레이아웃을 기본으로 한다.
-
-### 7.2 모바일
-
-- 글로벌 헤더는 로고, 현재 모듈, 햄버거 메뉴 중심으로 축약한다.
-- 좌측 사이드바는 기본 숨김이며 drawer 또는 slide-over로 연다.
-- 하위 메뉴는 리스트형 풀다운으로 전환한다.
-- 대시보드와 목록 화면은 1열 세로 스택을 기본으로 한다.
-
-### 7.3 모바일 drawer 규칙
-
-- drawer 상단에는 현재 사용자 정보와 현재 모듈명을 함께 표시한다.
-- drawer 내부에서는 모듈별 contextual menu만 보여준다.
-- 모듈 전환은 drawer 안이 아니라 글로벌 헤더의 모듈 스위처에서 처리한다.
-- drawer가 열린 상태에서 경로를 이동하면 자동으로 닫는다.
-
-## 8. Display 예외 규칙
-
-`/display`는 업무 셸과 다른 규칙을 가진다.
-
-- 화면 전체를 콘텐츠 출력에 사용한다.
-- 전역 헤더, 사이드바, breadcrumb, 일반 액션 바를 두지 않는다.
-- 상단에는 연결 상태 같은 운영 정보만 최소한으로 둔다.
-- 진입은 `Worship` 또는 운영용 링크에서 하더라도, 레이아웃은 독립적으로 유지한다.
-
-## 9. Next.js 구조 기준
-
-목표 구현은 App Router의 route group을 아래 기준으로 정리한다.
+## 6. 현재 Next.js 디렉토리 구조
 
 ```text
 frontend/app/
+  layout.tsx
+  globals.css
   (public)/
     page.tsx
-    login/page.tsx
+  (auth)/
     layout.tsx
+    login/page.tsx
   (workspace)/
     layout.tsx
     dashboard/page.tsx
-    udms/...
-    worship/...
+    udms/
+      layout.tsx
+      approvals/page.tsx
+      boards/page.tsx
+      documents/page.tsx
+      permissions/page.tsx
+      shares/page.tsx
+    worship/
+      layout.tsx
+      contents/page.tsx
+      orders/page.tsx
+      subtitles/
+        input/page.tsx
+        output/page.tsx
   (admin)/
     layout.tsx
-    admin/...
+    admin/
+      page.tsx
+      boards/page.tsx
+      permissions/page.tsx
+      users/page.tsx
+      worship-templates/page.tsx
   onboarding/page.tsx
   pending/page.tsx
   blocked/page.tsx
   display/page.tsx
+
+frontend/components/
+  authenticated-shell.tsx
+  module-page.tsx
+  onboarding-form.tsx
+  sign-out-button.tsx
+
+frontend/lib/
+  api.ts
+  api-base-url.ts
+  server-auth.ts
+  types.ts
 ```
 
-설명:
+## 7. 완료 기준
 
-- `(public)`은 공개 랜딩과 로그인만 담당한다.
-- `(workspace)`는 일반 사용자 작업 공간이다.
-- `(admin)`은 관리자 전용 영역이다.
-- 상태 처리 화면은 워크스페이스 셸 밖에 둔다.
-- `/display`는 위 셸과 별도인 예외 화면으로 남긴다.
+- [x] `/dashboard` route 구현
+- [x] authenticated shell 구현
+- [x] public home 분리
+- [x] `/display` shell 제외
+- [x] auth redirect 기준 `/dashboard`로 정렬
+- [x] 모바일 drawer 동작 추가
+- [x] layout 문서 기준과 실제 구조 정합
 
-## 10. 현재 코드 대비 갭
-
-현재 코드에는 목표 구조의 일부가 이미 반영되어 있지만, 아직 완성되지 않은 부분이 있다.
-
-- 현재 `/`는 공개 랜딩이 아니라 워크스페이스 홈처럼 동작한다.
-- 현재 공통 authenticated shell 컴포넌트는 없다.
-- 현재 `frontend/app/(workspace)/udms/layout.tsx`와 `frontend/app/(workspace)/worship/layout.tsx`는 권한 체크만 담당한다.
-- 현재 관리자 영역은 공통 셸보다 단일 페이지 진입점에 가깝다.
-- 현재 `/dashboard`는 구현되어 있지 않다.
-- 현재 모바일 drawer와 모듈 스위처 상호작용은 구현되어 있지 않다.
-
-## 11. TODO
-
-### 11.1 문서 기준 확정
-
-- [x] 공개 랜딩 정보구조 확정
-- [x] 공통 authenticated shell 정의
-- [x] 글로벌 헤더 모듈 스위처 정의
-- [x] UDMS/Worship/Admin contextual sidebar 정의
-- [x] 사용자 대시보드 위젯 정의
-- [x] 관리자 대시보드 위젯 정의
-- [x] 모바일 drawer / submenu 규칙 정의
-- [x] `/display` 예외 규칙 고정
-
-### 11.2 구현 및 검수
-
-- [ ] `/dashboard` 라우트와 사용자 대시보드 페이지 구현
-- [ ] 공통 authenticated shell 레이아웃 구현
-- [ ] 글로벌 헤더 모듈 스위처 UI 구현
-- [ ] 모듈별 contextual sidebar UI 구현
-- [ ] 모바일 drawer 상호작용 구현
-- [ ] `/display` 셸 분리 상태 검수
-- [ ] 구현 후 문서-코드 정합성 검수
-
-## 12. 관련 문서
+## 8. 관련 문서
 
 - [docs/architecture.md](architecture.md)
 - [docs/nanoom_erp.md](nanoom_erp.md)

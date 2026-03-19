@@ -52,7 +52,7 @@ def _build_login_redirect(error_message: str) -> str:
 
 
 def _resolve_post_login_path(user: dict, requested_next: str) -> str:
-    default_path = "/admin" if user.get("role") == "master" else "/"
+    default_path = "/admin" if user.get("role") == "master" else "/dashboard"
     if not is_profile_complete(user):
         return "/onboarding"
     if user.get("status") == "pending":

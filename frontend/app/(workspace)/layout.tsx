@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 
 import { AuthenticatedShell } from "@/components/authenticated-shell";
-import { requireMasterUser } from "@/lib/server-auth";
+import { requireWorkspaceUser } from "@/lib/server-auth";
 
-export default async function AdminLayout({ children }: { children: ReactNode }) {
-  const user = await requireMasterUser();
+export default async function WorkspaceLayout({ children }: { children: ReactNode }) {
+  const user = await requireWorkspaceUser();
 
   return <AuthenticatedShell user={user}>{children}</AuthenticatedShell>;
 }

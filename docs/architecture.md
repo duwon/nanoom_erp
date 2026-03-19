@@ -1,149 +1,165 @@
 # Architecture
 
-이 문서는 현재 코드베이스의 구조와, 앞으로 확장 모듈 형태로 유지하기 위한 권장 아키텍처를 정리한다.
+이 문서는 현재 코드베이스의 실제 구조를 기준으로 Nanoom ERP의 프론트엔드, 백엔드, 라우팅, 데이터 흐름을 정리한다.
 
-상위 목표와 우선순위는 [nanoom_erp.md](nanoom_erp.md)를 기준으로 한다.
-레이아웃 기준은 [layout.md](layout.md)를 기준으로 한다.
+상위 목표와 화면 기준은 [nanoom_erp.md](nanoom_erp.md)와 [layout.md](layout.md)를 따른다.
 
 ## 1. 현재 구조
 
 ### 1.1 Frontend
 
 - Next.js App Router 기반
-- 현재 주요 라우트는 `/`, `/login`, `/udms/*`, `/worship/*`, `/admin/*`, `/display`
-- 일반 사용자는 예배 순서 편집, 자막 입력, 문서 열람을 담당한다.
-- 관리자 화면은 사용자, 게시판, 예배 템플릿, 권한 관리 중심으로 동작한다.
-- `frontend/app/(workspace)/display/page.tsx`는 WebSocket으로 실시간 상태를 받는다.
+- authenticated shell을 기준으로 workspace/admin을 분리
+- public home, login, attention state, display를 역할에 따라 분리
 
-#### 현재 구조
+핵심 라우트:
 
-- `(auth)`는 로그인 전 진입과 인증 리다이렉트를 담당한다.
-- `(workspace)`는 일반 작업 화면과 display 화면을 포함한다.
-- `(admin)`은 관리자 전용 화면을 포함한다.
-- `frontend/app/(workspace)/udms/layout.tsx`와 `frontend/app/(workspace)/worship/layout.tsx`는 현재 권한 체크만 수행한다.
-
-#### 목표 레이아웃 기준
-
-- `(public)`은 공개 랜딩과 로그인만 담당한다.
-- `(workspace)`는 `/dashboard`, `/udms/*`, `/worship/*`를 포함하는 인증 워크스페이스다.
-- `(admin)`은 `/admin/*`을 담당하는 관리자 모듈이다.
-- `/display`는 공통 셸 외부의 예외 화면으로 유지한다.
-- 목표 기준의 `/dashboard`는 일반 사용자의 기본 진입점이다.
+- `/` - public home
+- `/login` - OAuth 시작
+- `/onboarding` - 프로필 입력
+- `/pending` - 승인 대기
+- `/blocked` - 차단 상태
+- `/dashboard` - 일반 사용자 기본 진입점
+- `/udms/*` - 문서 작업 영역
+- `/worship/*` - 예배 준비 영역
+- `/admin/*` - master 전용 관리 영역
+- `/display` - 발표 전용 화면
 
 ### 1.2 Backend
 
 - FastAPI 기반
-- 현재 API는 `api/routes.py`와 `api/v1/router.py`를 기준으로 나뉜다.
-- `api/routes.py`는 예배 순서와 display 상태를 다루는 공용 API 진입점이다.
-- `api/v1/router.py`는 auth, users, lookups, udms, admin 모듈을 묶는다.
-- 현재 경로 예시:
-  - `GET /api/health`
-  - `GET /api/order-items`
-  - `PUT /api/order-items/{item_id}`
-  - `POST /api/order-items/{item_id}/activate`
-  - `GET /api/display-state`
-- 현재 WebSocket 경로:
-  - `WS /ws/display`
+- `/api/routes.py`는 display 및 공용 API를 담당
+- `/api/v1/router.py`는 인증/사용자/UDMS/Admin 라우트를 묶는다
+- WebSocket은 `/ws/display`를 사용한다
 
-### 1.3 Database
+### 1.3 Storage
 
-- MongoDB 7 사용
-- 현재는 예배 순서와 display 상태를 중심으로 저장한다.
-- 향후에는 사용자, 권한, 문서, 이력, 첨부파일, 결재 데이터를 같은 저장소에서 분리된 컬렉션으로 관리한다.
+- MongoDB 기반 저장소
+- 사용자, 문서, 게시판, 권한, 승인, 예배 템플릿, 출력 상태를 분리해 다룬다
 
-## 2. 권장 모듈 경계
+## 2. 프론트엔드 라우팅 계층
 
-현재 구현은 이미 모듈형으로 분해되는 방향으로 이동했다. 아래 경계를 유지하면 이후 기능 추가 시 리팩터링 비용이 줄어든다.
+### 2.1 Route Groups
 
-### 2.1 Auth
+- `(public)` - `/` 같은 비인증 시작 화면
+- `(auth)` - 로그인 화면
+- `(workspace)` - 인증 사용자 업무 화면
+- `(admin)` - master 전용 관리 화면
 
-- 로그인
-- 세션 또는 토큰 발급
-- 사용자 식별
-- 부서/직분 기반 초기 권한 부여
-
-### 2.2 Users
-
-- 사용자 프로필
-- 부서 관리
-- 직분 관리
-- 관리자용 사용자 조회 및 수정
-
-### 2.3 UDMS
-
-- 게시판
-- 문서
-- 문서 버전
-- 첨부파일
-- 공유
-- 결재
-- 접근 권한
-
-### 2.4 Worship
-
-- 예배 순서 템플릿
-- 예배 순서 본문
-- 자막 입력
-- 자막 콘텐츠
-- 자막 출력
-
-설계 구분:
-
-- 템플릿 관리는 관리자 영역이다.
-- 순서 편집과 자막 입력은 사용자 작업영역이다.
-- 출력은 display와 연결된 송출 영역이다.
-
-### 2.5 Admin
-
-- 시스템 설정
-- 게시판 관리
-- 템플릿 관리
-- 사용자 관리
-- 권한 관리
-
-## 3. 권장 코드 구조
-
-### 3.1 Frontend
+### 2.2 현재 App Router 구조
 
 ```text
 frontend/app/
   layout.tsx
+  globals.css
+  (public)/
+    page.tsx
   (auth)/
+    layout.tsx
     login/page.tsx
   (workspace)/
-    page.tsx
-    display/page.tsx
+    layout.tsx
+    dashboard/page.tsx
     udms/
+      layout.tsx
       approvals/page.tsx
       boards/page.tsx
       documents/page.tsx
       permissions/page.tsx
       shares/page.tsx
     worship/
+      layout.tsx
       contents/page.tsx
       orders/page.tsx
       subtitles/
         input/page.tsx
         output/page.tsx
   (admin)/
+    layout.tsx
     admin/
       page.tsx
       boards/page.tsx
       permissions/page.tsx
       users/page.tsx
       worship-templates/page.tsx
-frontend/components/
-frontend/lib/
+  onboarding/page.tsx
+  pending/page.tsx
+  blocked/page.tsx
+  display/page.tsx
 ```
 
-원칙:
+## 3. 인증과 라우팅 정책
 
-- 화면별 로직은 `app`에서 시작한다.
-- 재사용 UI는 `components`로 올린다.
-- API 호출과 공통 타입은 `lib`로 모은다.
-- 목표 기준에서는 authenticated shell, global header, contextual sidebar를 별도 컴포넌트로 분리한다.
+### 3.1 인증 기준
 
-### 3.2 Backend
+- `active` 일반 사용자: `/dashboard`
+- `active` `master`: `/admin`
+- `pending`: `/pending`
+- `blocked`: `/blocked`
+- 프로필 미완성: `/onboarding`
+
+### 3.2 redirect 흐름
+
+- 서버 측 인증 판단은 `frontend/lib/server-auth.ts`가 담당한다.
+- OAuth callback에서 `backend/app/modules/auth/router.py`가 최종 착지 경로를 결정한다.
+- onboarding 완료 시 `frontend/components/onboarding-form.tsx`가 `/dashboard` 또는 `/admin`으로 이동시킨다.
+
+### 3.3 공통 shell 범위
+
+다음은 authenticated shell을 사용한다.
+
+- `/dashboard`
+- `/udms/*`
+- `/worship/*`
+- `/admin/*`
+
+다음은 shell을 사용하지 않는다.
+
+- `/`
+- `/login`
+- `/onboarding`
+- `/pending`
+- `/blocked`
+- `/display`
+
+## 4. 공통 컴포넌트 계층
+
+### 4.1 Authenticated Shell
+
+`frontend/components/authenticated-shell.tsx`는 다음 역할을 한다.
+
+- 데스크톱 sidebar 렌더링
+- 모바일 drawer 렌더링
+- 현재 경로 active 상태 표시
+- 역할별 메뉴 필터링
+- sign-out 노출
+
+### 4.2 Module Page
+
+`frontend/components/module-page.tsx`는 각 모듈의 카드형 소개 페이지를 담당한다.
+
+- `UDMS`
+- `Worship`
+- `Admin`
+
+shell 안에서 중첩 `<main>`이 생기지 않도록 wrapper를 `section`으로 정리했다.
+
+### 4.3 Session / Auth helpers
+
+`frontend/lib/server-auth.ts`는 서버에서 사용자 상태를 확인하고 다음 경로를 결정한다.
+
+주요 함수:
+
+- `getCurrentUserServer`
+- `getAttentionRedirect`
+- `getDefaultAuthenticatedPath`
+- `requireWorkspaceUser`
+- `requireMasterUser`
+- `requireOnboardingUser`
+- `requirePendingUser`
+- `requireBlockedUser`
+
+## 5. Backend 구조
 
 ```text
 backend/app/
@@ -214,100 +230,47 @@ backend/app/
     subtitles.py
 ```
 
-원칙:
+## 6. 데이터 흐름
 
-- `main.py`는 조립만 담당한다.
-- `modules/admin`과 `modules/udms`는 하위 기능 패키지를 include 하는 조립용 라우터를 가진다.
-- 각 기능은 자기 API와 자기 입력 스키마를 가진다.
-- 저장소 접근은 repository 또는 store 계층에서만 담당한다.
-- WebSocket은 HTTP API와 분리하되, 같은 도메인 모듈에 귀속시킨다.
+### 6.1 Auth
 
-## 4. 데이터 경계
+- OAuth provider start URL 생성
+- callback에서 access token 쿠키 발급
+- `auth/me`로 현재 사용자 조회
 
-현재 구현에서 확장해야 할 핵심 데이터는 다음과 같다.
+### 6.2 Workspace
 
-- `User`
-- `Department`
-- `Role` 또는 `Position`
-- `Board`
-- `Document`
-- `DocumentVersion`
-- `Attachment`
-- `Permission`
-- `Share`
-- `Approval`
-- `AuditLog`
-- `WorshipTemplate`
-- `WorshipOrder`
-- `SubtitleContent`
+- `dashboard`는 user 상태와 module shortcut의 시작점
+- `udms`는 문서/공유/결재/권한 작업으로 이어진다
+- `worship`는 순서와 자막 준비로 이어진다
 
-권장 사항:
+### 6.3 Display
 
-- 본문 데이터와 파일 메타데이터를 분리한다.
-- 이력은 덮어쓰지 말고 누적한다.
-- 접근 권한은 문서 단위와 기능 단위 둘 다 표현할 수 있어야 한다.
+- `/worship/subtitles/output` 또는 운영 API가 display 상태를 갱신한다
+- `/display`는 WebSocket으로 상태를 받아 화면만 렌더링한다
 
-## 5. 실시간 구조
+## 7. Display 분리 이유
 
-초기에는 display 화면만 WebSocket으로 갱신한다.
+`/display`는 다음 이유로 authenticated shell 밖에 둔다.
 
-향후 실시간 채널은 다음처럼 분리하는 것이 좋다.
+- 발표 장치의 전체 화면을 차지하는 특성상, sidebar와 header가 시각적 방해가 된다.
+- shell은 사용자가 탐색하는 업무 공간용 프레임이고, `/display`는 사용자 탐색이 아닌 출력 전용 화면이다.
+- WebSocket 기반 상태 갱신은 고정된 경로와 최소 chrome에서 가장 안정적이다.
+- 따라서 `/display`는 인증 흐름의 일부가 아니라, 운영 출력 계층으로 분리하는 것이 맞다.
 
-- `WS /ws/display`
-- `WS /ws/worship/subtitles`
-- `WS /ws/notifications`
+## 8. 현재 구현 상태
 
-이렇게 분리하면 다음 이점이 있다.
+다음이 이미 반영되어 있다.
 
-- display와 편집 화면의 책임이 분리된다.
-- 예배 자막 입력 사용자가 많아져도 채널을 독립적으로 운영할 수 있다.
-- 알림, 승인, 공동 편집 기능을 후속 모듈로 붙이기 쉽다.
-
-## 6. API 라우팅 원칙
-
-- 가능한 한 `/api/v1` 형태로 버전 접두사를 둔다.
-- 도메인별 prefix를 명확히 분리한다.
-- UI 라우트와 API 라우트의 이름을 최대한 비슷하게 맞춘다.
-- 공통 예외 응답 형식을 유지한다.
-
-예시:
-
-- `/api/v1/auth/oauth/{provider}/start`
-- `/api/v1/auth/oauth/{provider}/callback`
-- `/api/v1/auth/me`
-- `/api/v1/users/me/profile`
-- `/api/v1/udms/documents`
-- `/api/v1/udms/documents/{id}/versions`
-- `/api/v1/udms/documents/{id}/attachments`
-- `/api/v1/admin/users`
-- `/api/v1/admin/worship-templates`
-
-## 7. 구현 순서 제안
-
-1. 인증과 사용자/권한 기준을 만든다.
-2. UDMS 문서와 첨부파일 구조를 만든다.
-3. 수정 이력과 공유, 결재의 데이터 구조를 분리한다.
-4. 관리자 페이지에 템플릿 관리와 권한 관리 화면을 붙인다.
-5. 자막 입력과 출력 모듈을 실시간 구조로 확장한다.
-6. 공통 레이아웃 셸을 도입하고 `/dashboard`를 기본 진입점으로 전환한다.
-
-## 8. 현재 코드와의 연결
-
-현재 코드는 이미 확장 모듈 방향으로 나뉘어 있다.
-
-- `frontend/app/(admin)/admin/page.tsx`는 관리자 콘솔의 출발점이다.
-- `frontend/app/(workspace)/worship/orders/page.tsx`는 사용자 예배 순서 편집의 출발점이다.
-- `frontend/app/(workspace)/worship/subtitles/input/page.tsx`는 사용자 자막 입력의 출발점이다.
-- `frontend/app/(workspace)/display/page.tsx`는 실시간 출력 화면의 출발점이다.
-- `backend/app/modules/admin/router.py`는 관리자 기능을 조립하는 진입점이다.
-- `backend/app/modules/udms/router.py`는 UDMS 기능을 조립하는 진입점이다.
-- `backend/app/api/routes.py`는 현재 REST 라우트를 모으는 진입점이다.
-- `backend/app/main.py`는 FastAPI 앱과 WebSocket을 조립한다.
-
-이 구조는 MVP에는 충분하지만, 확장 단계에서는 현재처럼 기능별 하위 패키지를 유지하는 것이 중요하다.
+- `frontend/app/(workspace)/dashboard/page.tsx`
+- `frontend/app/(workspace)/layout.tsx`
+- `frontend/components/authenticated-shell.tsx`
+- `frontend/app/(public)/page.tsx`
+- `frontend/app/display/page.tsx`
+- `backend/app/modules/auth/router.py`
 
 ## 9. 관련 문서
 
-- 상위 목표와 우선순위: [nanoom_erp.md](nanoom_erp.md)
-- 실행 방법과 운영 절차: [operations.md](operations.md)
-- 레이아웃 기준서: [layout.md](layout.md)
+- [nanoom_erp.md](nanoom_erp.md)
+- [layout.md](layout.md)
+- [operations.md](operations.md)

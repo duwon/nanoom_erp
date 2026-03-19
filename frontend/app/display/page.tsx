@@ -85,7 +85,7 @@ export default function DisplayPage() {
               Nanoom Display
             </p>
             <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight text-white md:text-6xl">
-              실시간 예배 자막 송출 화면
+              Fullscreen worship display
             </h1>
           </div>
           <div className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-slate-100 backdrop-blur">
@@ -99,13 +99,13 @@ export default function DisplayPage() {
 
         <div className="rounded-[40px] border border-white/10 bg-white/10 px-8 py-10 shadow-glow backdrop-blur-xl md:px-12 md:py-14">
           <div className="mb-6 text-sm uppercase tracking-[0.34em] text-slate-300">
-            {displayState?.activeItemId ? `ACTIVE · ${displayState.activeItemId}` : "STANDBY"}
+            {displayState?.activeItemId ? `ACTIVE / ${displayState.activeItemId}` : "STANDBY"}
           </div>
           <h2 className="font-display text-5xl font-semibold leading-tight text-white md:text-7xl">
-            {displayState?.title ?? "송출 대기 중"}
+            {displayState?.title ?? "Waiting for display content"}
           </h2>
           <p className="mt-10 whitespace-pre-wrap font-display text-3xl leading-[1.55] text-slate-100 md:text-5xl">
-            {displayState?.content ?? "관리자 화면에서 예배 순서를 선택하면 여기에 표시됩니다."}
+            {displayState?.content ?? "Open a worship order in the workspace to show content here."}
           </p>
         </div>
       </section>
