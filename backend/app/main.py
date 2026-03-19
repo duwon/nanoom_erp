@@ -66,6 +66,14 @@ def create_app(
     app.state.store = InMemoryAppStore.bootstrap()
     if service is not None:
         app.state.service = service
+    if user_repository is not None:
+        app.state.user_repository = user_repository
+    elif service is not None:
+        app.state.user_repository = InMemoryUserRepository.bootstrap()
+    if oauth_service is not None:
+        app.state.oauth_service = oauth_service
+    elif service is not None:
+        app.state.oauth_service = HttpOAuthService()
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

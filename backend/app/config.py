@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     frontend_port: int = 3000
     mongo_url: str = "mongodb://mongo:27017"
     mongo_db: str = "nanoom_erp"
-    jwt_secret_key: str = "change-me-in-production"
+    jwt_secret_key: str = "change-me-in-production-secret-key-123456"
     jwt_algorithm: str = "HS256"
     access_token_minutes: int = 480
     oauth_state_minutes: int = 10

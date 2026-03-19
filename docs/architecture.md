@@ -255,9 +255,10 @@ backend/app/
 
 예시:
 
-- `/api/v1/auth/login`
+- `/api/v1/auth/oauth/{provider}/start`
+- `/api/v1/auth/oauth/{provider}/callback`
 - `/api/v1/auth/me`
-- `/api/v1/users`
+- `/api/v1/users/me/profile`
 - `/api/v1/udms/documents`
 - `/api/v1/udms/documents/{id}/versions`
 - `/api/v1/udms/documents/{id}/attachments`

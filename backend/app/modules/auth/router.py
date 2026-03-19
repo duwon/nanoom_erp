@@ -58,6 +58,8 @@ def _resolve_post_login_path(user: dict, requested_next: str) -> str:
         return "/pending"
     if user.get("status") == "blocked":
         return "/blocked"
+    if requested_next == "/":
+        return default_path
     if requested_next.startswith("/admin") and user.get("role") != "master":
         return default_path
     return requested_next or default_path

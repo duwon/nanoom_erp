@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from urllib.parse import parse_qs, urlparse
 
+from app.config import get_settings
 from app.modules.users.repository import InMemoryUserRepository
 from app.modules.users.schemas import SocialProvider
 from app.services.oauth_service import OAuthError, OAuthIdentity
@@ -66,12 +67,16 @@ def issue_oauth_login(client, code: str, provider: str = "google", next_path: st
     return callback_response
 
 
+def frontend_url() -> str:
+    return get_settings().resolved_frontend_app_url
+
+
 def test_social_login_creates_pending_member_and_reuses_same_account() -> None:
     repository = InMemoryUserRepository.bootstrap()
     client = create_test_client(user_repository=repository, oauth_service=FakeOAuthService())
 
     first_callback = issue_oauth_login(client, "new-member")
-    assert first_callback.headers["location"] == "http://localhost:3000/onboarding"
+    assert first_callback.headers["location"] == f"{frontend_url()}/onboarding"
 
     me_response = client.get("/api/v1/auth/me")
     assert me_response.status_code == 200
@@ -84,7 +89,7 @@ def test_social_login_creates_pending_member_and_reuses_same_account() -> None:
     user_id = payload["id"]
 
     second_callback = issue_oauth_login(client, "new-member")
-    assert second_callback.headers["location"] == "http://localhost:3000/onboarding"
+    assert second_callback.headers["location"] == f"{frontend_url()}/onboarding"
     assert len(repository.users) == user_count
 
     second_me = client.get("/api/v1/auth/me")
@@ -99,7 +104,7 @@ def test_oauth_login_without_email_redirects_to_login_error() -> None:
     )
 
     callback_response = issue_oauth_login(client, "missing-email")
-    assert callback_response.headers["location"].startswith("http://localhost:3000/login?error=")
+    assert callback_response.headers["location"].startswith(f"{frontend_url()}/login?error=")
 
     me_response = client.get("/api/v1/auth/me")
     assert me_response.status_code == 401
@@ -137,7 +142,7 @@ def test_master_can_activate_user_and_active_user_can_access_udms() -> None:
     member_id = member_client.get("/api/v1/auth/me").json()["id"]
 
     admin_callback = issue_oauth_login(admin_client, "master-login")
-    assert admin_callback.headers["location"] == "http://localhost:3000/admin"
+    assert admin_callback.headers["location"] == f"{frontend_url()}/admin"
 
     approve_response = admin_client.put(
         f"/api/v1/admin/users/{member_id}",
@@ -148,7 +153,7 @@ def test_master_can_activate_user_and_active_user_can_access_udms() -> None:
     assert approve_response.json()["role"] == "editor"
 
     relogin_callback = issue_oauth_login(member_client, "new-member")
-    assert relogin_callback.headers["location"] == "http://localhost:3000/"
+    assert relogin_callback.headers["location"] == f"{frontend_url()}/"
 
     boards_response = member_client.get("/api/v1/udms/boards")
     assert boards_response.status_code == 200
