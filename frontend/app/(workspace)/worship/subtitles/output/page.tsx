@@ -1,20 +1,17 @@
-import { ModulePage } from "@/components/module-page";
-import { DocumentContainer } from "@/components/udms/document-container";
+import { redirect } from "next/navigation";
 
-export default function WorshipSubtitlesOutputPage() {
-  return (
-    <ModulePage
-      eyebrow="Worship / Subtitle"
-      title="Subtitle Output"
-      description="The live subtitle output flow can read from the same SubtitleContent document space used by input screens."
-      highlights={[
-        "Same document set as subtitle input",
-        "Output remains a downstream consumer",
-        "Presentation wiring can be added without changing UDMS core",
-      ]}
-      actions={[{ href: "/display", label: "Display Screen", variant: "secondary" }]}
-    >
-      <DocumentContainer targetType="SubtitleContent" targetId="" title="Subtitle Output Sources" />
-    </ModulePage>
-  );
+export default async function WorshipSubtitleOutputRedirect({
+  searchParams,
+}: {
+  searchParams: Promise<{ anchorDate?: string; serviceId?: string }>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const query = new URLSearchParams();
+  if (resolvedSearchParams.anchorDate) {
+    query.set("anchorDate", resolvedSearchParams.anchorDate);
+  }
+  if (resolvedSearchParams.serviceId) {
+    query.set("serviceId", resolvedSearchParams.serviceId);
+  }
+  redirect(`/worship/review${query.toString() ? `?${query.toString()}` : ""}`);
 }

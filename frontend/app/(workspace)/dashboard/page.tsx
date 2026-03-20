@@ -19,9 +19,9 @@ function buildShortcuts(role: AuthUser["role"]): Shortcut[] {
       variant: "primary",
     },
     {
-      href: "/worship/orders",
-      label: "예배 순서",
-      description: "예배 준비 흐름을 이어갑니다.",
+      href: "/worship",
+      label: "예배 운영",
+      description: "다가오는 예배 준비 흐름을 이어갑니다.",
       variant: "secondary",
     },
   ];
@@ -73,9 +73,9 @@ function buildNextActions(role: AuthUser["role"]) {
       href: "/udms/documents",
     },
     {
-      title: "예배 순서 준비",
-      description: "다음 예배 흐름을 배치합니다.",
-      href: "/worship/orders",
+      title: "예배 운영 준비",
+      description: "다음 예배 서비스와 담당자 진행 상태를 확인합니다.",
+      href: "/worship",
     },
     {
       title: "결재 대기 검토",

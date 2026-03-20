@@ -41,6 +41,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("UDMS_STORAGE_DIR", "UDMS_UPLOAD_ROOT"),
     )
     udms_max_upload_bytes: int = 20 * 1024 * 1024
+    worship_timezone: str = "Asia/Seoul"
     cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:3000"]
     )

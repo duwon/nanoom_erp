@@ -17,6 +17,16 @@ import type {
   PermissionSubjectType,
   SharedDocumentsOverview,
   SocialProvider,
+  WorshipCalendarResponse,
+  WorshipGuestLinkResponse,
+  WorshipGuestTaskView,
+  WorshipPresentationState,
+  WorshipReviewResponse,
+  WorshipScriptureLookupResponse,
+  WorshipSection,
+  WorshipServiceDetail,
+  WorshipSongLookupItem,
+  WorshipTemplate,
   TargetTypeDescriptor,
   TargetPolicyAction,
   TargetPolicyRule,
@@ -365,6 +375,220 @@ export async function replaceTargetPolicies(
   payload: Array<{ subjectType: PermissionSubjectType; subjectId: string; actions: TargetPolicyAction[] }>,
 ): Promise<TargetPolicyRule[]> {
   return requestJson<TargetPolicyRule[]>(`${getApiV1BaseUrl()}/udms/policies/${targetType}/${targetId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getWorshipCalendar(params?: {
+  anchorDate?: string;
+  days?: number;
+}): Promise<WorshipCalendarResponse> {
+  const url = new URL(`${getApiV1BaseUrl()}/worship/calendar`);
+  if (params?.anchorDate) {
+    url.searchParams.set("anchorDate", params.anchorDate);
+  }
+  if (params?.days) {
+    url.searchParams.set("days", String(params.days));
+  }
+  const response = await fetch(url.toString(), {
+    cache: "no-store",
+    credentials: "include",
+  });
+  return handleResponse<WorshipCalendarResponse>(response);
+}
+
+export async function getWorshipService(serviceId: string) {
+  const response = await fetch(`${getApiV1BaseUrl()}/worship/services/${serviceId}`, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  return handleResponse<WorshipServiceDetail>(response);
+}
+
+export async function updateWorshipService(
+  serviceId: string,
+  payload: { version: number; summary?: string; serviceName?: string; startAt?: string },
+): Promise<WorshipServiceDetail> {
+  return requestJson<WorshipServiceDetail>(`${getApiV1BaseUrl()}/worship/services/${serviceId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateWorshipSection(
+  serviceId: string,
+  sectionId: string,
+  payload: {
+    version: number;
+    title?: string;
+    detail?: string;
+    role?: string;
+    assigneeId?: string | null;
+    assigneeName?: string | null;
+    status?: string;
+    durationMinutes?: number;
+    templateKey?: string;
+    notes?: string;
+    content?: Record<string, unknown>;
+    slides?: WorshipSection["slides"];
+  },
+): Promise<WorshipServiceDetail> {
+  return requestJson<WorshipServiceDetail>(`${getApiV1BaseUrl()}/worship/services/${serviceId}/sections/${sectionId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function reorderWorshipSections(
+  serviceId: string,
+  payload: { version: number; sections: Array<{ sectionId: string; order: number }> },
+): Promise<WorshipServiceDetail> {
+  return requestJson<WorshipServiceDetail>(`${getApiV1BaseUrl()}/worship/services/${serviceId}/sections/reorder`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function issueWorshipGuestLink(
+  serviceId: string,
+  taskId: string,
+): Promise<WorshipGuestLinkResponse> {
+  return requestJson<WorshipGuestLinkResponse>(
+    `${getApiV1BaseUrl()}/worship/services/${serviceId}/tasks/${taskId}/guest-link`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export async function getWorshipGuestInput(token: string): Promise<WorshipGuestTaskView> {
+  const response = await fetch(`${getApiV1BaseUrl()}/worship/input/${token}`, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  return handleResponse<WorshipGuestTaskView>(response);
+}
+
+export async function submitWorshipGuestInput(
+  token: string,
+  values: Record<string, unknown>,
+): Promise<WorshipGuestTaskView> {
+  return requestJson<WorshipGuestTaskView>(`${getApiV1BaseUrl()}/worship/input/${token}`, {
+    method: "PUT",
+    body: JSON.stringify({ values }),
+  });
+}
+
+export async function lookupWorshipSongs(query: string): Promise<WorshipSongLookupItem[]> {
+  const url = new URL(`${getApiV1BaseUrl()}/worship/lookups/songs`);
+  url.searchParams.set("q", query);
+  const response = await fetch(url.toString(), {
+    cache: "no-store",
+    credentials: "include",
+  });
+  return handleResponse<WorshipSongLookupItem[]>(response);
+}
+
+export async function lookupWorshipScripture(params: {
+  book: string;
+  chapter: number;
+  verseStart: number;
+  verseEnd?: number;
+  translation?: string;
+}): Promise<WorshipScriptureLookupResponse> {
+  const url = new URL(`${getApiV1BaseUrl()}/worship/lookups/scripture`);
+  url.searchParams.set("book", params.book);
+  url.searchParams.set("chapter", String(params.chapter));
+  url.searchParams.set("verseStart", String(params.verseStart));
+  if (params.verseEnd) {
+    url.searchParams.set("verseEnd", String(params.verseEnd));
+  }
+  if (params.translation) {
+    url.searchParams.set("translation", params.translation);
+  }
+  const response = await fetch(url.toString(), {
+    cache: "no-store",
+    credentials: "include",
+  });
+  return handleResponse<WorshipScriptureLookupResponse>(response);
+}
+
+export async function parseWorshipLyrics(
+  serviceId: string,
+  sectionId: string,
+  payload: { lyrics: string; templateKey?: string },
+): Promise<{ slides: WorshipSection["slides"] }> {
+  return requestJson<{ slides: WorshipSection["slides"] }>(
+    `${getApiV1BaseUrl()}/worship/services/${serviceId}/sections/${sectionId}/lyrics:parse`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function getWorshipReview(serviceId: string): Promise<WorshipReviewResponse> {
+  const response = await fetch(`${getApiV1BaseUrl()}/worship/services/${serviceId}/review`, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  return handleResponse<WorshipReviewResponse>(response);
+}
+
+export async function activateWorshipPresentation(
+  serviceId: string,
+  selectedSectionIds: string[],
+): Promise<WorshipPresentationState> {
+  const response = await fetch(`${getApiV1BaseUrl()}/worship/services/${serviceId}/presentation/activate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ selectedSectionIds }),
+    credentials: "include",
+  });
+  return handleResponse<WorshipPresentationState>(response);
+}
+
+export async function listWorshipTemplates(): Promise<WorshipTemplate[]> {
+  const response = await fetch(`${getApiV1BaseUrl()}/admin/worship-templates`, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  return handleResponse<WorshipTemplate[]>(response);
+}
+
+export async function createWorshipTemplate(payload: {
+  serviceKind: string;
+  displayName: string;
+  startTime: string;
+  generationRule: string;
+  defaultSections: unknown[];
+  taskPresets: unknown[];
+  templatePresets: unknown[];
+  isActive: boolean;
+}): Promise<WorshipTemplate> {
+  return requestJson<WorshipTemplate>(`${getApiV1BaseUrl()}/admin/worship-templates`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateWorshipTemplate(
+  templateId: string,
+  payload: {
+    serviceKind: string;
+    displayName: string;
+    startTime: string;
+    generationRule: string;
+    defaultSections: unknown[];
+    taskPresets: unknown[];
+    templatePresets: unknown[];
+    isActive: boolean;
+  },
+): Promise<WorshipTemplate> {
+  return requestJson<WorshipTemplate>(`${getApiV1BaseUrl()}/admin/worship-templates/${templateId}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });

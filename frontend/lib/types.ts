@@ -54,6 +54,244 @@ export type ApprovalTemplate = {
   updatedAt: string;
 };
 
+export type WorshipStatus = "waiting" | "progress" | "review" | "complete";
+export type WorshipSectionType =
+  | "song"
+  | "special_song"
+  | "scripture"
+  | "message"
+  | "notice"
+  | "prayer"
+  | "media";
+export type WorshipFieldType =
+  | "text"
+  | "textarea"
+  | "song_search"
+  | "lyrics"
+  | "scripture"
+  | "template";
+export type WorshipGenerationRule = "daily" | "sunday" | "wednesday" | "friday";
+
+export type WorshipSlide = {
+  id: string;
+  label: string;
+  lines: string[];
+  templateKey: string;
+  aspectRatio: string;
+  notes: string;
+};
+
+export type WorshipSection = {
+  id: string;
+  order: number;
+  sectionType: WorshipSectionType;
+  title: string;
+  detail: string;
+  role: string;
+  assigneeId: string | null;
+  assigneeName: string | null;
+  status: WorshipStatus;
+  durationMinutes: number;
+  templateKey: string;
+  notes: string;
+  content: Record<string, unknown>;
+  slides: WorshipSlide[];
+  updatedAt: string;
+};
+
+export type WorshipTaskFieldSpec = {
+  key: string;
+  label: string;
+  fieldType: WorshipFieldType;
+  required: boolean;
+  helpText: string;
+};
+
+export type WorshipGuestAccess = {
+  tokenHash: string | null;
+  issuedAt: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  lastOpenedAt: string | null;
+};
+
+export type WorshipTask = {
+  id: string;
+  role: string;
+  scope: string;
+  sectionIds: string[];
+  requiredFields: WorshipTaskFieldSpec[];
+  status: WorshipStatus;
+  dueAt: string | null;
+  tips: string;
+  guestAccess: WorshipGuestAccess;
+  lastSubmittedAt: string | null;
+};
+
+export type WorshipReviewSummary = {
+  totalSections: number;
+  completeSections: number;
+  progressSections: number;
+  waitingSections: number;
+  reviewSections: number;
+  pendingReviewCount: number;
+  pendingTaskCount: number;
+};
+
+export type WorshipTemplatePreset = {
+  key: string;
+  label: string;
+  description: string;
+};
+
+export type WorshipTemplateSectionPreset = {
+  id: string;
+  order: number;
+  sectionType: WorshipSectionType;
+  title: string;
+  detail: string;
+  role: string;
+  assigneeName: string | null;
+  durationMinutes: number;
+  templateKey: string;
+  notes: string;
+  content: Record<string, unknown>;
+};
+
+export type WorshipTaskPreset = {
+  id: string;
+  role: string;
+  scope: string;
+  sectionIds: string[];
+  requiredFields: WorshipTaskFieldSpec[];
+  dueOffsetMinutes: number;
+  tips: string;
+};
+
+export type WorshipTemplate = {
+  id: string;
+  serviceKind: string;
+  displayName: string;
+  startTime: string;
+  generationRule: WorshipGenerationRule;
+  defaultSections: WorshipTemplateSectionPreset[];
+  taskPresets: WorshipTaskPreset[];
+  templatePresets: WorshipTemplatePreset[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WorshipCalendarService = {
+  id: string;
+  serviceKind: string;
+  serviceName: string;
+  startAt: string;
+  status: WorshipStatus;
+  reviewSummary: WorshipReviewSummary;
+};
+
+export type WorshipCalendarDay = {
+  date: string;
+  dateLabel: string;
+  weekdayLabel: string;
+  services: WorshipCalendarService[];
+};
+
+export type WorshipCalendarResponse = {
+  anchorDate: string;
+  days: WorshipCalendarDay[];
+  defaultServiceId: string | null;
+};
+
+export type WorshipServiceMetadata = {
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WorshipServiceDetail = {
+  id: string;
+  date: string;
+  serviceKind: string;
+  serviceName: string;
+  startAt: string;
+  summary: string;
+  templateId: string;
+  version: number;
+  status: WorshipStatus;
+  sections: WorshipSection[];
+  tasks: WorshipTask[];
+  reviewSummary: WorshipReviewSummary;
+  exportSnapshot: Record<string, unknown>;
+  metadata: WorshipServiceMetadata;
+};
+
+export type WorshipGuestLinkResponse = {
+  taskId: string;
+  token: string;
+  inputUrl: string;
+  expiresAt: string | null;
+};
+
+export type WorshipGuestTaskView = {
+  serviceId: string;
+  serviceName: string;
+  date: string;
+  role: string;
+  scope: string;
+  dueAt: string | null;
+  tips: string;
+  status: WorshipStatus;
+  requiredFields: WorshipTaskFieldSpec[];
+  values: Record<string, unknown>;
+};
+
+export type WorshipSongLookupItem = {
+  id: string;
+  title: string;
+  artist: string;
+  recentUseCount: number;
+  tags: string[];
+};
+
+export type WorshipScriptureLookupResponse = {
+  reference: string;
+  text: string;
+  translation: string;
+  slides: WorshipSlide[];
+};
+
+export type WorshipReviewItem = {
+  sectionId: string;
+  order: number;
+  title: string;
+  detail: string;
+  status: WorshipStatus;
+  templateKey: string;
+  notes: string;
+};
+
+export type WorshipPresentationPreview = {
+  serviceId: string;
+  serviceName: string;
+  generatedAt: string;
+  sections: WorshipSection[];
+};
+
+export type WorshipReviewResponse = {
+  service: WorshipServiceDetail;
+  items: WorshipReviewItem[];
+  preview: WorshipPresentationPreview;
+};
+
+export type WorshipPresentationState = {
+  serviceId: string | null;
+  activeSectionId: string | null;
+  title: string;
+  content: string;
+  updatedAt: string | null;
+};
+
 export type DocumentTargetType = string;
 
 export type TargetTypeDescriptor = {

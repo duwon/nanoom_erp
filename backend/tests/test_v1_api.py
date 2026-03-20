@@ -335,7 +335,9 @@ def test_target_catalog_returns_enabled_and_disabled_targets() -> None:
     assert payload["Board"]["isEnabled"] is True
     assert payload["Board"]["requiresExistingParent"] is True
     assert payload["Approval"]["isEnabled"] is False
-    assert payload["WorshipOrder"]["isEnabled"] is False
+    assert payload["WorshipOrder"]["isEnabled"] is True
+    assert payload["WorshipOrder"]["requiresExistingParent"] is True
+    assert payload["WorshipOrder"]["deepLinkTemplate"] == "/worship?serviceId={target_id}"
     assert payload["Board"]["namespace"] == "board"
 
 

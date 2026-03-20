@@ -1,20 +1,17 @@
-import { ModulePage } from "@/components/module-page";
-import { DocumentContainer } from "@/components/udms/document-container";
+import { redirect } from "next/navigation";
 
-export default function WorshipContentsPage() {
-  return (
-    <ModulePage
-      eyebrow="Worship / Content"
-      title="Worship Content"
-      description="Worship assets and content references can be represented as UDMS documents under the WorshipContent target type."
-      highlights={[
-        "Use targetType=WorshipContent",
-        "Documents carry attachments, metadata, and ACL",
-        "Target-specific modules can still layer UI on top",
-      ]}
-      actions={[{ href: "/worship/orders", label: "Worship Orders", variant: "secondary" }]}
-    >
-      <DocumentContainer targetType="WorshipContent" targetId="" title="Worship Content Documents" />
-    </ModulePage>
-  );
+export default async function WorshipContentsRedirect({
+  searchParams,
+}: {
+  searchParams: Promise<{ anchorDate?: string; serviceId?: string }>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const query = new URLSearchParams();
+  if (resolvedSearchParams.anchorDate) {
+    query.set("anchorDate", resolvedSearchParams.anchorDate);
+  }
+  if (resolvedSearchParams.serviceId) {
+    query.set("serviceId", resolvedSearchParams.serviceId);
+  }
+  redirect(`/worship${query.toString() ? `?${query.toString()}` : ""}`);
 }

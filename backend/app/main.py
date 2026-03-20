@@ -11,7 +11,12 @@ from app.core.store import InMemoryAppStore
 from app.modules.udms.repository import InMemoryUdmsRepository, MongoUdmsRepository, UdmsRepository
 from app.modules.udms.service import UdmsService
 from app.modules.udms.targets import TargetRegistry, register_udms_targets
-from app.db.repository import MongoWorshipRepository
+from app.modules.worship.adapters import (
+    InMemoryScriptureAdapter,
+    InMemorySongCatalogAdapter,
+    NoopPresentationAdapter,
+)
+from app.modules.worship.repository import InMemoryWorshipRepository, MongoWorshipRepository, WorshipRepository
 from app.modules.users.repository import InMemoryUserRepository, MongoUserRepository, UserRepository
 from app.modules.users.schemas import SocialProvider
 from app.modules.worship.udms_targets import register_worship_targets
@@ -20,10 +25,10 @@ from app.services.worship_service import WorshipService
 from app.ws.connection_manager import ConnectionManager
 
 
-def build_udms_service(repository: UdmsRepository, settings) -> UdmsService:
+def build_udms_service(repository: UdmsRepository, settings, worship_repository: WorshipRepository) -> UdmsService:
     registry = TargetRegistry()
     register_udms_targets(registry, repository)
-    register_worship_targets(registry)
+    register_worship_targets(registry, worship_repository)
     return UdmsService(
         repository,
         settings.udms_storage_dir,
@@ -44,16 +49,26 @@ def create_app(
     async def lifespan(app: FastAPI):
         app.state.store = InMemoryAppStore.bootstrap()
         mongo_client: AsyncIOMotorClient | None = None
+        active_worship_repository: WorshipRepository
 
         if service is not None:
             app.state.service = service
+            active_worship_repository = service.repository
         else:
             mongo_client = AsyncIOMotorClient(settings.mongo_url)
             repository = MongoWorshipRepository(mongo_client[settings.mongo_db])
             ws_manager = ConnectionManager()
             app.state.mongo_client = mongo_client
-            app.state.service = WorshipService(repository, ws_manager)
-            await repository.ensure_indexes()
+            app.state.service = WorshipService(
+                repository,
+                ws_manager,
+                song_adapter=InMemorySongCatalogAdapter(),
+                scripture_adapter=InMemoryScriptureAdapter(),
+                presentation_adapter=NoopPresentationAdapter(),
+                timezone_name=settings.worship_timezone,
+                frontend_app_url=settings.resolved_frontend_app_url,
+            )
+            active_worship_repository = repository
             await app.state.service.seed_defaults()
 
         if udms_repository is not None:
@@ -62,7 +77,7 @@ def create_app(
             active_udms_repository = MongoUdmsRepository(mongo_client[settings.mongo_db])
         else:
             active_udms_repository = InMemoryUdmsRepository.bootstrap()
-        app.state.udms_service = build_udms_service(active_udms_repository, settings)
+        app.state.udms_service = build_udms_service(active_udms_repository, settings, active_worship_repository)
         await app.state.udms_service.seed_defaults()
 
         if user_repository is not None:
@@ -93,9 +108,9 @@ def create_app(
     if service is not None:
         app.state.service = service
     if udms_repository is not None:
-        app.state.udms_service = build_udms_service(udms_repository, settings)
+        app.state.udms_service = build_udms_service(udms_repository, settings, service.repository if service is not None else InMemoryWorshipRepository.bootstrap())
     elif service is not None:
-        app.state.udms_service = build_udms_service(InMemoryUdmsRepository.bootstrap(), settings)
+        app.state.udms_service = build_udms_service(InMemoryUdmsRepository.bootstrap(), settings, service.repository)
     if user_repository is not None:
         app.state.user_repository = user_repository
     elif service is not None:

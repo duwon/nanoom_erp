@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.core.store import NotFoundError
 from app.dependencies import get_worship_service
-from app.db.repository import OrderItemNotFoundError
 from app.schemas.display import DisplayState
 from app.schemas.order_item import OrderItem, OrderItemUpdate
 from app.services.worship_service import WorshipService
@@ -29,7 +29,7 @@ async def update_order_item(
 ) -> OrderItem:
     try:
         return await service.update_order_item(item_id, payload)
-    except OrderItemNotFoundError as exc:
+    except NotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
@@ -43,7 +43,7 @@ async def activate_order_item(
 ) -> DisplayState:
     try:
         return await service.activate_order_item(item_id)
-    except OrderItemNotFoundError as exc:
+    except NotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
