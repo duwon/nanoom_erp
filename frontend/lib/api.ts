@@ -3,18 +3,23 @@ import type {
   ApprovalTemplate,
   AuthUser,
   Board,
-  BoardPermissionRule,
-  BoardPermissionAction,
-  DocumentAttachment,
-  DocumentShare,
   DisplayState,
+  DocumentAclAction,
+  DocumentAclEffect,
+  DocumentAttachment,
+  DocumentDetail,
+  DocumentRevision,
+  DocumentStatus,
+  DocumentSummary,
+  DocumentTargetType,
   LookupEntry,
   OrderItem,
   PermissionSubjectType,
-  SharedDocumentOverview,
+  SharedDocumentsOverview,
   SocialProvider,
-  UdmsDocumentDetail,
-  UdmsDocumentSummary,
+  TargetTypeDescriptor,
+  TargetPolicyAction,
+  TargetPolicyRule,
   UserProfileUpdate,
 } from "@/lib/types";
 import { getPublicApiBaseUrl } from "@/lib/api-base-url";
@@ -34,7 +39,6 @@ export function getWebSocketUrl() {
   if (envUrl) {
     return envUrl;
   }
-
   const apiUrl = getPublicApiBaseUrl();
   if (apiUrl.startsWith("https://")) {
     return apiUrl.replace("https://", "wss://") + "/ws/display";
@@ -50,7 +54,6 @@ async function readErrorMessage(response: Response): Promise<string> {
       return payload.detail;
     }
   }
-
   const text = await response.text();
   return text || `Request failed with status ${response.status}`;
 }
@@ -71,7 +74,6 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
     },
     credentials: "include",
   });
-
   return handleResponse<T>(response);
 }
 
@@ -174,14 +176,26 @@ export async function getApprovalTemplates(): Promise<ApprovalTemplate[]> {
   return handleResponse<ApprovalTemplate[]>(response);
 }
 
-export async function listUdmsDocuments(params?: {
-  boardId?: string;
-  status?: string;
+export async function getTargetTypes(): Promise<TargetTypeDescriptor[]> {
+  const response = await fetch(`${getApiV1BaseUrl()}/udms/target-types`, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  return handleResponse<TargetTypeDescriptor[]>(response);
+}
+
+export async function listDocuments(params?: {
+  targetType?: DocumentTargetType;
+  targetId?: string;
+  status?: DocumentStatus;
   q?: string;
-}): Promise<UdmsDocumentSummary[]> {
-  const url = new URL(`${getApiV1BaseUrl()}/udms/documents`);
-  if (params?.boardId) {
-    url.searchParams.set("boardId", params.boardId);
+}): Promise<DocumentSummary[]> {
+  const url = new URL(`${getApiV1BaseUrl()}/udms/docs`);
+  if (params?.targetType) {
+    url.searchParams.set("targetType", params.targetType);
+  }
+  if (params?.targetId) {
+    url.searchParams.set("targetId", params.targetId);
   }
   if (params?.status) {
     url.searchParams.set("status", params.status);
@@ -193,103 +207,128 @@ export async function listUdmsDocuments(params?: {
     cache: "no-store",
     credentials: "include",
   });
-  return handleResponse<UdmsDocumentSummary[]>(response);
+  return handleResponse<DocumentSummary[]>(response);
 }
 
-export async function getUdmsDocument(documentId: string): Promise<UdmsDocumentDetail> {
-  const response = await fetch(`${getApiV1BaseUrl()}/udms/documents/${documentId}`, {
+export async function getDocument(documentId: string): Promise<DocumentDetail> {
+  const response = await fetch(`${getApiV1BaseUrl()}/udms/docs/${documentId}`, {
     cache: "no-store",
     credentials: "include",
   });
-  return handleResponse<UdmsDocumentDetail>(response);
+  return handleResponse<DocumentDetail>(response);
 }
 
-export async function createUdmsDocument(payload: {
-  boardId: string;
+export async function createDocument(payload: {
   title: string;
-  content: string;
-  approvalTemplateId?: string | null;
-}): Promise<UdmsDocumentDetail> {
-  return requestJson<UdmsDocumentDetail>(`${getApiV1BaseUrl()}/udms/documents`, {
+  category: string;
+  tags: string[];
+  targetType: DocumentTargetType;
+  targetId: string;
+  body: string;
+  moduleData?: Record<string, unknown>;
+  changeLog?: string;
+}): Promise<DocumentDetail> {
+  return requestJson<DocumentDetail>(`${getApiV1BaseUrl()}/udms/docs`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export async function updateUdmsDocument(
+export async function updateDocument(
   documentId: string,
   payload: {
-    boardId?: string;
     title?: string;
-    content?: string;
-    approvalTemplateId?: string | null;
+    category?: string;
+    tags?: string[];
+    targetType?: DocumentTargetType;
+    targetId?: string;
+    body?: string;
+    moduleData?: Record<string, unknown>;
+    changeLog?: string;
   },
-): Promise<UdmsDocumentDetail> {
-  return requestJson<UdmsDocumentDetail>(`${getApiV1BaseUrl()}/udms/documents/${documentId}`, {
+): Promise<DocumentDetail> {
+  return requestJson<DocumentDetail>(`${getApiV1BaseUrl()}/udms/docs/${documentId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createWorkingCopy(documentId: string): Promise<DocumentDetail> {
+  return requestJson<DocumentDetail>(`${getApiV1BaseUrl()}/udms/docs/${documentId}/working-copy`, {
+    method: "POST",
+  });
+}
+
+export async function publishDocument(documentId: string): Promise<DocumentDetail> {
+  return requestJson<DocumentDetail>(`${getApiV1BaseUrl()}/udms/docs/${documentId}/publish`, {
+    method: "POST",
+  });
+}
+
+export async function rollbackDocument(documentId: string, targetVersion: number): Promise<DocumentDetail> {
+  return requestJson<DocumentDetail>(`${getApiV1BaseUrl()}/udms/docs/${documentId}/rollback`, {
+    method: "POST",
+    body: JSON.stringify({ targetVersion }),
+  });
+}
+
+export async function listDocumentRevisions(documentId: string): Promise<DocumentRevision[]> {
+  const response = await fetch(`${getApiV1BaseUrl()}/udms/docs/${documentId}/revisions`, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  return handleResponse<DocumentRevision[]>(response);
+}
+
+export async function updateDocumentSecurity(
+  documentId: string,
+  payload: {
+    acl: Array<{
+      subjectType: PermissionSubjectType;
+      subjectId: string;
+      actions: DocumentAclAction[];
+      effect: DocumentAclEffect;
+    }>;
+  },
+): Promise<DocumentDetail> {
+  return requestJson<DocumentDetail>(`${getApiV1BaseUrl()}/udms/docs/${documentId}/security`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
 }
 
-export async function publishUdmsDocument(documentId: string): Promise<UdmsDocumentDetail> {
-  return requestJson<UdmsDocumentDetail>(`${getApiV1BaseUrl()}/udms/documents/${documentId}/publish`, {
-    method: "POST",
-    body: JSON.stringify({}),
-  });
-}
-
-export async function createUdmsNextVersion(documentId: string): Promise<UdmsDocumentDetail> {
-  return requestJson<UdmsDocumentDetail>(`${getApiV1BaseUrl()}/udms/documents/${documentId}/versions`, {
-    method: "POST",
-    body: JSON.stringify({}),
-  });
-}
-
-export async function getUdmsVersions(documentId: string): Promise<UdmsDocumentSummary[]> {
-  const response = await fetch(`${getApiV1BaseUrl()}/udms/documents/${documentId}/versions`, {
-    cache: "no-store",
-    credentials: "include",
-  });
-  return handleResponse<UdmsDocumentSummary[]>(response);
-}
-
-export async function getDocumentShares(documentId: string): Promise<DocumentShare[]> {
-  const response = await fetch(`${getApiV1BaseUrl()}/udms/documents/${documentId}/shares`, {
-    cache: "no-store",
-    credentials: "include",
-  });
-  return handleResponse<DocumentShare[]>(response);
-}
-
-export async function replaceDocumentShares(
+export async function createDocumentExternalShare(
   documentId: string,
-  payload: Array<{ targetType: "user" | "department"; targetId: string; permission: "read" | "edit" }>,
-): Promise<DocumentShare[]> {
-  return requestJson<DocumentShare[]>(`${getApiV1BaseUrl()}/udms/documents/${documentId}/shares`, {
-    method: "PUT",
+  payload: { label: string; expiresAt?: string | null; canDownload: boolean },
+): Promise<DocumentDetail> {
+  return requestJson<DocumentDetail>(`${getApiV1BaseUrl()}/udms/docs/${documentId}/external-shares`, {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export async function getSharedDocuments(): Promise<SharedDocumentOverview> {
-  const response = await fetch(`${getApiV1BaseUrl()}/udms/shares`, {
+export async function deleteDocumentExternalShare(documentId: string, shareId: string): Promise<DocumentDetail> {
+  return requestJson<DocumentDetail>(`${getApiV1BaseUrl()}/udms/docs/${documentId}/external-shares/${shareId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getSharedDocuments(): Promise<SharedDocumentsOverview> {
+  const response = await fetch(`${getApiV1BaseUrl()}/udms/docs/shared`, {
     cache: "no-store",
     credentials: "include",
   });
-  return handleResponse<SharedDocumentOverview>(response);
+  return handleResponse<SharedDocumentsOverview>(response);
 }
 
-export async function uploadDocumentAttachment(
-  documentId: string,
-  file: File,
-): Promise<DocumentAttachment> {
+export async function uploadDocumentAttachment(documentId: string, file: File): Promise<DocumentAttachment> {
   const body = new FormData();
   body.append("file", file);
-  return requestFormData<DocumentAttachment>(`${getApiV1BaseUrl()}/udms/documents/${documentId}/attachments`, body);
+  return requestFormData<DocumentAttachment>(`${getApiV1BaseUrl()}/udms/docs/${documentId}/files`, body);
 }
 
 export async function deleteDocumentAttachment(attachmentId: string): Promise<void> {
-  const response = await fetch(`${getApiV1BaseUrl()}/udms/attachments/${attachmentId}`, {
+  const response = await fetch(`${getApiV1BaseUrl()}/udms/files/${attachmentId}`, {
     method: "DELETE",
     credentials: "include",
   });
@@ -299,22 +338,33 @@ export async function deleteDocumentAttachment(attachmentId: string): Promise<vo
 }
 
 export function getAttachmentDownloadUrl(attachmentId: string) {
-  return `${getApiV1BaseUrl()}/udms/attachments/${attachmentId}/download`;
+  return `${getApiV1BaseUrl()}/udms/files/${attachmentId}/download`;
 }
 
-export async function getBoardPermissionRules(): Promise<BoardPermissionRule[]> {
-  const response = await fetch(`${getApiV1BaseUrl()}/udms/permissions`, {
+export async function getTargetPolicies(params?: {
+  targetType?: DocumentTargetType;
+  targetId?: string;
+}): Promise<TargetPolicyRule[]> {
+  const url = new URL(`${getApiV1BaseUrl()}/udms/policies`);
+  if (params?.targetType) {
+    url.searchParams.set("targetType", params.targetType);
+  }
+  if (params?.targetId) {
+    url.searchParams.set("targetId", params.targetId);
+  }
+  const response = await fetch(url.toString(), {
     cache: "no-store",
     credentials: "include",
   });
-  return handleResponse<BoardPermissionRule[]>(response);
+  return handleResponse<TargetPolicyRule[]>(response);
 }
 
-export async function replaceBoardPermissionRules(
-  boardId: string,
-  payload: Array<{ subjectType: PermissionSubjectType; subjectId: string; actions: BoardPermissionAction[] }>,
-): Promise<BoardPermissionRule[]> {
-  return requestJson<BoardPermissionRule[]>(`${getApiV1BaseUrl()}/udms/boards/${boardId}/permissions`, {
+export async function replaceTargetPolicies(
+  targetType: DocumentTargetType,
+  targetId: string,
+  payload: Array<{ subjectType: PermissionSubjectType; subjectId: string; actions: TargetPolicyAction[] }>,
+): Promise<TargetPolicyRule[]> {
+  return requestJson<TargetPolicyRule[]>(`${getApiV1BaseUrl()}/udms/policies/${targetType}/${targetId}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
@@ -338,18 +388,13 @@ export async function updateOrderItem(
     },
     body: JSON.stringify(payload),
   });
-
   return handleResponse<OrderItem>(response);
 }
 
 export async function activateOrderItem(itemId: string): Promise<DisplayState> {
-  const response = await fetch(
-    `${getPublicApiBaseUrl()}/api/order-items/${itemId}/activate`,
-    {
-      method: "POST",
-    },
-  );
-
+  const response = await fetch(`${getPublicApiBaseUrl()}/api/order-items/${itemId}/activate`, {
+    method: "POST",
+  });
   return handleResponse<DisplayState>(response);
 }
 
@@ -357,6 +402,5 @@ export async function getDisplayState(): Promise<DisplayState> {
   const response = await fetch(`${getPublicApiBaseUrl()}/api/display-state`, {
     cache: "no-store",
   });
-
   return handleResponse<DisplayState>(response);
 }

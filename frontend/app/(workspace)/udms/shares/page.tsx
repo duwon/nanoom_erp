@@ -4,63 +4,102 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { getSharedDocuments } from "@/lib/api";
-import type { SharedDocumentOverview } from "@/lib/types";
+import type { SharedDocumentsOverview } from "@/lib/types";
 import { ModulePage } from "@/components/module-page";
+import { buildTargetDeepLink, useTargetCatalog } from "@/components/udms/use-target-catalog";
+
+const emptyOverview: SharedDocumentsOverview = {
+  accessible: [],
+  externalLinks: [],
+};
 
 export default function UdmsSharesPage() {
-  const [overview, setOverview] = useState<SharedDocumentOverview>({ received: [], sent: [] });
+  const [overview, setOverview] = useState<SharedDocumentsOverview>(emptyOverview);
   const [message, setMessage] = useState("");
+  const { getTargetDescriptor, message: catalogMessage } = useTargetCatalog();
 
   useEffect(() => {
     async function load() {
       try {
         setOverview(await getSharedDocuments());
+        setMessage("");
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "공유 목록을 불러오지 못했습니다.");
+        setMessage(error instanceof Error ? error.message : "Failed to load shared documents.");
       }
     }
+
     void load();
   }, []);
 
   return (
     <ModulePage
-      eyebrow="문서 관리 / 공유"
-      title="문서 공유"
-      description="내가 공유한 문서와 공유받은 문서를 교차로 확인합니다."
+      eyebrow="UDMS / Shared"
+      title="Shared Documents"
+      description="This view shows documents visible through ACL inheritance and external links created from document security settings."
       highlights={[
-        `공유받은 문서 ${overview.received.length}건`,
-        `내가 공유한 문서 ${overview.sent.length}건`,
-        "새 버전 생성 시 share 자동 복제",
+        `${overview.accessible.length} accessible documents`,
+        `${overview.externalLinks.length} external share links`,
+        "Shares are derived from document security, not standalone rows",
       ]}
-      actions={[{ href: "/udms/documents", label: "문서 목록", variant: "secondary" }]}
+      actions={[{ href: "/udms/documents", label: "All Documents", variant: "secondary" }]}
     >
-      {message ? (
+      {message || catalogMessage ? (
         <div className="rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
-          {message}
+          {message || catalogMessage}
         </div>
       ) : null}
 
       <section className="panel rounded-[28px] p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">Received</p>
-        <h2 className="mt-2 font-display text-2xl font-semibold text-slate-900">공유받은 문서</h2>
+        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">ACL Access</p>
+        <h2 className="mt-2 font-display text-2xl font-semibold text-slate-900">Accessible Documents</h2>
         <div className="mt-4 grid gap-3">
-          {overview.received.map((item) => (
-            <Link key={`${item.direction}-${item.share.id}`} href={`/udms/documents/${item.document.id}`} className="rounded-[20px] border border-slate-200 bg-white px-4 py-4 text-sm text-slate-700">
-              {item.document.title} / {item.share.permission} / {item.share.targetType}:{item.share.targetId}
-            </Link>
-          ))}
+          {overview.accessible.length ? (
+            overview.accessible.map((item) => (
+              <Link
+                key={`${item.document.id}-${item.accessSource}`}
+                href={`/udms/documents/${item.document.id}`}
+                className="rounded-[20px] border border-slate-200 bg-white px-4 py-4 text-sm text-slate-700"
+              >
+                <p className="font-semibold text-slate-900">{item.document.header.title}</p>
+                <p className="mt-1 text-slate-600">{item.accessSource}</p>
+              </Link>
+            ))
+          ) : (
+            <div className="rounded-[20px] border border-dashed border-slate-300 bg-white/70 px-4 py-4 text-sm text-slate-600">
+              No shared documents are visible to the current user.
+            </div>
+          )}
         </div>
       </section>
 
       <section className="panel rounded-[28px] p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">Sent</p>
-        <h2 className="mt-2 font-display text-2xl font-semibold text-slate-900">내가 공유한 문서</h2>
+        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">External Links</p>
+        <h2 className="mt-2 font-display text-2xl font-semibold text-slate-900">Issued Share Links</h2>
         <div className="mt-4 grid gap-3">
-          {overview.sent.map((item) => (
-            <Link key={`${item.direction}-${item.share.id}`} href={`/udms/documents/${item.document.id}`} className="rounded-[20px] border border-slate-200 bg-white px-4 py-4 text-sm text-slate-700">
-              {item.document.title} / {item.share.permission} / {item.share.targetType}:{item.share.targetId}
-            </Link>
-          ))}
+          {overview.externalLinks.length ? (
+            overview.externalLinks.map((item) => {
+              const descriptor = getTargetDescriptor(item.targetType);
+              const targetLabel = descriptor?.label ?? item.targetType;
+              const targetLink = buildTargetDeepLink(descriptor, item.targetId);
+              return (
+                <div key={item.link.id} className="rounded-[20px] border border-slate-200 bg-white px-4 py-4 text-sm text-slate-700">
+                  <p className="font-semibold text-slate-900">{item.documentTitle}</p>
+                  <p className="mt-1 break-all text-slate-600">
+                    {targetLabel} / {item.targetId} / token {item.link.token}
+                  </p>
+                  {targetLink ? (
+                    <Link href={targetLink} className="mt-2 inline-flex text-sm font-medium text-amber-700 underline-offset-4 hover:underline">
+                      Open target context
+                    </Link>
+                  ) : null}
+                </div>
+              );
+            })
+          ) : (
+            <div className="rounded-[20px] border border-dashed border-slate-300 bg-white/70 px-4 py-4 text-sm text-slate-600">
+              No external share links have been created yet.
+            </div>
+          )}
         </div>
       </section>
     </ModulePage>

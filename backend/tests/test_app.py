@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+from app.modules.udms.repository import UdmsRepository
 from app.modules.users.repository import UserRepository
 from app.schemas.display import DisplayState
 from app.services.oauth_service import OAuthService
@@ -94,6 +95,7 @@ class FakeRepository:
 
 def create_test_client(
     user_repository: UserRepository | None = None,
+    udms_repository: UdmsRepository | None = None,
     oauth_service: OAuthService | None = None,
 ) -> TestClient:
     service = WorshipService(FakeRepository(), ConnectionManager())
@@ -101,6 +103,7 @@ def create_test_client(
         create_app(
             service=service,
             user_repository=user_repository,
+            udms_repository=udms_repository,
             oauth_service=oauth_service,
         )
     )

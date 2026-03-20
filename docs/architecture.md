@@ -31,6 +31,7 @@
 - `/api/routes.py`는 display 및 공용 API를 담당
 - `/api/v1/router.py`는 인증/사용자/UDMS/Admin 라우트를 묶는다
 - WebSocket은 `/ws/display`를 사용한다
+- UDMS는 app bootstrap 시점의 `TargetRegistry`로 `targetType`을 검증하고, `/api/v1/udms/target-types` catalog를 프론트에 제공한다
 
 ### 1.3 Storage
 
@@ -269,6 +270,7 @@ backend/app/
 
 - `dashboard`는 user 상태와 module shortcut의 시작점
 - `udms`는 문서/공유/결재/권한 작업으로 이어진다
+- 현재 UDMS 문서 생성/수정/정책 저장은 `Board` target만 write-enabled이며, 다른 registered target은 read-only metadata 상태다
 - `worship`는 순서와 자막 준비로 이어진다
 
 ### 6.3 Display

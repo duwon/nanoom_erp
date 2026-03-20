@@ -38,12 +38,12 @@ services:
       AUTH_DEV_SEED_EMAIL: ${AUTH_DEV_SEED_EMAIL:-admin@localhost}
       AUTH_DEV_SEED_PROVIDER_USER_ID: ${AUTH_DEV_SEED_PROVIDER_USER_ID:-dev-master}
       AUTH_DEV_SEED_NAME: ${AUTH_DEV_SEED_NAME:-개발 관리자}
-      UDMS_UPLOAD_ROOT: ${UDMS_UPLOAD_ROOT:-/app/data/uploads}
+      UDMS_STORAGE_DIR: ${UDMS_STORAGE_DIR:-/app/data/storage}
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
-      - ./storage/uploads:/app/data/uploads
+      - ./storage/udms:/app/data/storage
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
       interval: 10s

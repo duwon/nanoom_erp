@@ -3,56 +3,82 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { getUdmsDocument, updateUdmsDocument } from "@/lib/api";
-import type { UdmsDocumentDetail } from "@/lib/types";
+import { createWorkingCopy, getDocument, updateDocument } from "@/lib/api";
+import type { DocumentDetail } from "@/lib/types";
 import { ModulePage } from "@/components/module-page";
 import { DocumentForm } from "@/components/udms/document-form";
+
+function readApprovalTemplateId(moduleData: Record<string, unknown>) {
+  const approval = moduleData.approval;
+  if (!approval || typeof approval !== "object") {
+    return null;
+  }
+
+  const templateId = (approval as { templateId?: unknown }).templateId;
+  return typeof templateId === "string" ? templateId : null;
+}
 
 export default function EditUdmsDocumentPage() {
   const params = useParams<{ documentId: string }>();
   const router = useRouter();
   const documentId = params.documentId;
-  const [document, setDocument] = useState<UdmsDocumentDetail | null>(null);
+  const [document, setDocument] = useState<DocumentDetail | null>(null);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     if (!documentId) {
       return;
     }
+
     async function load() {
-      const response = await getUdmsDocument(documentId);
-      setDocument(response);
+      try {
+        let response = await getDocument(documentId);
+        if (!response.workingRevision && response.capabilities.canCreateWorkingCopy) {
+          response = await createWorkingCopy(documentId);
+        }
+        setDocument(response);
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Failed to load the document.");
+      }
     }
+
     void load();
   }, [documentId]);
 
   if (!document) {
     return (
       <ModulePage
-        eyebrow="문서 관리 / 문서 / 편집"
-        title="문서 편집"
-        description="문서를 불러오는 중입니다."
+        eyebrow="UDMS / Documents / Edit"
+        title="Edit Document"
+        description={message || "Loading the working copy."}
       />
     );
   }
 
+  const revision = document.workingRevision ?? document.currentRevision;
+
   return (
     <ModulePage
-      eyebrow="문서 관리 / 문서 / 편집"
-      title={`${document.title} 편집`}
-      description="draft 문서만 편집할 수 있습니다. 게시와 첨부, 공유 관리는 상세 화면에서 이어집니다."
-      actions={[{ href: `/udms/documents/${document.id}`, label: "상세로 돌아가기", variant: "secondary" }]}
+      eyebrow="UDMS / Documents / Edit"
+      title={`Edit ${revision.header.title}`}
+      description="The working revision updates the document root pointers while older revisions remain immutable."
+      actions={[{ href: `/udms/documents/${document.id}`, label: "Back to Detail", variant: "secondary" }]}
     >
       <DocumentForm
         initialValues={{
-          boardId: document.boardId,
-          title: document.title,
-          content: document.content,
-          approvalTemplateId: document.approvalTemplateId,
+          title: revision.header.title,
+          category: revision.header.category,
+          tagsText: revision.header.tags.join(", "),
+          targetType: document.link.targetType,
+          targetId: document.link.targetId,
+          body: revision.body ?? "<p></p>",
+          approvalTemplateId: readApprovalTemplateId(revision.moduleData),
+          changeLog: revision.changeLog,
         }}
-        submitLabel="초안 저장"
-        busyLabel="저장 중..."
+        submitLabel="Save Draft"
+        busyLabel="Saving..."
         onSubmit={async (values) => {
-          const updated = await updateUdmsDocument(document.id, values);
+          const updated = await updateDocument(document.id, values);
           router.push(`/udms/documents/${updated.id}`);
         }}
       />

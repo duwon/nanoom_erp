@@ -1,7 +1,6 @@
 export type SocialProvider = "google" | "kakao";
 
 export type UserRole = "master" | "final_approver" | "editor" | "member";
-
 export type UserStatus = "pending" | "active" | "blocked";
 
 export type AuthUser = {
@@ -46,12 +45,6 @@ export type Board = {
   updatedAt: string;
 };
 
-export type DocumentStatus = "draft" | "published" | "superseded";
-export type SharePermission = "read" | "edit";
-export type ShareTargetType = "user" | "department";
-export type BoardPermissionAction = "read" | "create" | "manage";
-export type PermissionSubjectType = "role" | "department" | "user";
-
 export type ApprovalTemplate = {
   id: string;
   name: string;
@@ -61,69 +54,161 @@ export type ApprovalTemplate = {
   updatedAt: string;
 };
 
-export type DocumentShare = {
-  id: string;
-  docId: string;
-  targetType: ShareTargetType;
+export type DocumentTargetType = string;
+
+export type TargetTypeDescriptor = {
+  targetType: string;
+  label: string;
+  namespace: string;
+  deepLinkTemplate: string;
+  requiresExistingParent: boolean;
+  documentTitleHint: string | null;
+  isEnabled: boolean;
+};
+
+export type DocumentStatus = "draft" | "published" | "locked" | "archived";
+export type PermissionSubjectType = "role" | "department" | "user";
+export type TargetPolicyAction = "read" | "create" | "manage";
+export type DocumentAclAction = "read" | "edit" | "manage" | "publish";
+export type DocumentAclEffect = "allow" | "deny";
+export type DocumentEditorType = "tiptap";
+
+export type DocumentHeader = {
+  title: string;
+  category: string;
+  tags: string[];
+  authorId: string | null;
+};
+
+export type DocumentLink = {
+  targetType: DocumentTargetType;
   targetId: string;
-  permission: SharePermission;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
+  deepLink: string | null;
 };
 
 export type DocumentAttachment = {
   id: string;
-  docId: string;
-  storageKey: string;
   fileName: string;
   mimeType: string;
   sizeBytes: number;
+  storageKey: string;
+  version: number;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
 };
 
-export type UdmsDocumentSummary = {
+export type DocumentRevision = {
   id: string;
-  originDocId: string;
-  prevDocId: string | null;
-  versionNumber: number;
-  boardId: string;
-  title: string;
-  content: string;
-  status: DocumentStatus;
-  approvalTemplateId: string | null;
-  createdBy: string;
-  updatedBy: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type UdmsDocumentDetail = UdmsDocumentSummary & {
+  documentId: string;
+  version: number;
+  header: DocumentHeader;
+  body: string | null;
+  summary: string;
+  editorType: DocumentEditorType;
   attachments: DocumentAttachment[];
-  shares: DocumentShare[];
+  moduleData: Record<string, unknown>;
+  changeLog: string;
+  createdBy: string;
+  createdAt: string;
+  isCurrent: boolean;
+  isPublished: boolean;
 };
 
-export type BoardPermissionRule = {
-  id: string;
-  boardId: string;
+export type DocumentMetadata = {
+  version: number;
+  isDeleted: boolean;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DocumentState = {
+  status: DocumentStatus;
+};
+
+export type DocumentAclRule = {
   subjectType: PermissionSubjectType;
   subjectId: string;
-  actions: BoardPermissionAction[];
+  actions: DocumentAclAction[];
+  effect: DocumentAclEffect;
+};
+
+export type ExternalShareLink = {
+  id: string;
+  label: string;
+  token: string;
+  expiresAt: string | null;
+  canDownload: boolean;
+  createdBy: string;
+  createdAt: string;
+};
+
+export type DocumentSecurity = {
+  acl: DocumentAclRule[];
+  externalShares: ExternalShareLink[];
+};
+
+export type DocumentSecuritySummary = {
+  aclCount: number;
+  externalShareCount: number;
+  hasDenyRules: boolean;
+};
+
+export type DocumentCapabilities = {
+  effectiveActions: string[];
+  canRead: boolean;
+  canEditWorkingCopy: boolean;
+  canPublish: boolean;
+  canManageSecurity: boolean;
+  canCreateWorkingCopy: boolean;
+};
+
+export type DocumentSummary = {
+  id: string;
+  header: DocumentHeader;
+  link: DocumentLink;
+  state: DocumentState;
+  metadata: DocumentMetadata;
+  currentRevision: DocumentRevision;
+  publishedRevision: DocumentRevision | null;
+  workingRevision: DocumentRevision | null;
+  securitySummary: DocumentSecuritySummary;
+  moduleData: Record<string, unknown>;
+  capabilities: DocumentCapabilities;
+};
+
+export type DocumentDetail = DocumentSummary & {
+  security: DocumentSecurity;
+};
+
+export type SharedDocumentRow = {
+  document: DocumentSummary;
+  accessSource: string;
+};
+
+export type ExternalShareRow = {
+  documentId: string;
+  documentTitle: string;
+  link: ExternalShareLink;
+  targetType: DocumentTargetType;
+  targetId: string;
+};
+
+export type SharedDocumentsOverview = {
+  accessible: SharedDocumentRow[];
+  externalLinks: ExternalShareRow[];
+};
+
+export type TargetPolicyRule = {
+  id: string;
+  targetType: DocumentTargetType;
+  targetId: string;
+  subjectType: PermissionSubjectType;
+  subjectId: string;
+  actions: TargetPolicyAction[];
   createdAt: string;
   updatedAt: string;
-};
-
-export type SharedDocumentSummary = {
-  share: DocumentShare;
-  document: UdmsDocumentSummary;
-  direction: "received" | "sent";
-};
-
-export type SharedDocumentOverview = {
-  received: SharedDocumentSummary[];
-  sent: SharedDocumentSummary[];
 };
 
 export type OrderItem = {

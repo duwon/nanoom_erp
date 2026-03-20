@@ -1,73 +1,71 @@
 # Operations
 
-이 문서는 로컬 개발 환경에서 현재 코드를 실행하는 방법과, 운영 시 확인해야 할 기본 경로를 정리한다.
-레이아웃 목표와 관련된 검증 항목은 [layout.md](layout.md)를 기준으로 추가 관리한다.
+This document captures the local runbook and quick verification points for the current Nanoom ERP stack.
 
-## 1. 로컬 실행
+## 1. Local Start
 
-기본 실행 명령:
+Start all services:
 
 ```bash
 docker compose up --build -d
 ```
 
-종료:
+Stop all services:
 
 ```bash
 docker compose down
 ```
 
-## 2. 현재 확인 경로
+## 2. Local URLs
 
-기본 포트 구성은 다음과 같다.
-
-- Frontend Home: `http://localhost:3000/`
+- Frontend home: `http://localhost:3000/`
 - Login: `http://localhost:3000/login`
 - Admin: `http://localhost:3000/admin`
 - Display: `http://localhost:3000/display`
-- Backend Docs: `http://localhost:8000/docs`
+- Backend docs: `http://localhost:8000/docs`
 
-Windows 환경에서 `3000` 포트가 막히는 경우 루트 `.env`의 `FRONTEND_PORT`를 바꿔서 실행한다.
+If port `3000` is already in use on Windows, change `FRONTEND_PORT` in `.env`.
 
-예시:
+Example:
 
 ```env
 FRONTEND_PORT=3300
 ```
 
-이 경우 접속 경로는 다음처럼 바뀐다.
+Then access the frontend at `http://localhost:3300`.
 
-- Frontend Home: `http://localhost:3300/`
-- Login: `http://localhost:3300/login`
-- Admin: `http://localhost:3300/admin`
-- Display: `http://localhost:3300/display`
+## 3. Important Environment Variables
 
-## 3. 환경 변수
+- `FRONTEND_PORT`: public frontend port
+- `MONGO_URL`: MongoDB connection string
+- `MONGO_DB`: MongoDB database name
+- `NEXT_PUBLIC_API_BASE_URL`: browser-facing API base URL
+- `NEXT_PUBLIC_WS_URL`: browser-facing WebSocket URL
+- `UDMS_STORAGE_DIR`: backend container path used for UDMS file storage
 
-`.env.example` 기준으로 주요 항목은 다음과 같다.
+`backend/app/config.py` still accepts `UDMS_UPLOAD_ROOT` as a compatibility alias, but new deployments should use `UDMS_STORAGE_DIR`.
 
-- `FRONTEND_PORT`: 프론트엔드 노출 포트
-- `MONGO_URL`: MongoDB 연결 문자열
-- `MONGO_DB`: 사용할 데이터베이스 이름
-- `NEXT_PUBLIC_API_BASE_URL`: 프론트에서 호출할 백엔드 API 주소
-- `NEXT_PUBLIC_WS_URL`: 프론트에서 사용할 WebSocket 주소
-- `UDMS_UPLOAD_ROOT`: 백엔드 컨테이너 내부 UDMS 첨부 저장 경로
+## 4. UDMS V2 Checks
 
-운영 환경에서는 프론트 포트와 백엔드 CORS 허용 목록이 일치해야 한다.
+Confirm these flows after startup:
 
-## 4. 개발 시점 체크 포인트
+- `GET /api/health` returns `{"status":"ok"}`
+- `/api/v1/admin/users` responds correctly
+- `/api/v1/udms/docs` responds correctly
+- `/api/v1/udms/docs/shared` responds correctly
+- `/api/v1/udms/policies` responds correctly
+- `/api/v1/udms/approval-templates` responds correctly
+- `/api/v1/udms/target-types` responds correctly
+- document attachment upload and download work
+- approval-completed hook and parent-deleted hook respond correctly when invoked
 
-- 프론트가 열리는지 확인한다.
-- 백엔드 `/api/health`가 `ok`를 반환하는지 확인한다.
-- `/admin`에서 목록 조회와 저장이 가능한지 확인한다.
-- `/display`가 초기 상태와 실시간 갱신을 받는지 확인한다.
-- `/api/v1/admin/users`와 `/api/v1/udms/documents`가 정상 동작하는지 확인한다.
-- `/api/v1/udms/approval-templates`가 정상 동작하는지 확인한다.
-- 문서 첨부 업로드와 다운로드가 정상 동작하는지 확인한다.
+Current Dynamic Target Registry policy:
 
-## 5. 향후 확장 라우트
+- `Board` is the only `isEnabled=true` target for create/update/policy writes
+- `Approval`, `WorshipOrder`, `WorshipContent`, `SubtitleContent`, `Inventory`, `Broadcast`, `Project`, `User` stay registered but write-disabled
+- unregistered target types return `409`
 
-현재는 이미 확장 모듈 구조로 정리되어 있지만, 기능이 추가될 때 다음 경로가 더 늘어날 수 있다.
+## 5. Frontend Routes
 
 - `/login`
 - `/udms/boards`
@@ -86,38 +84,37 @@ FRONTEND_PORT=3300
 - `/admin/permissions`
 - `/display`
 
-백엔드도 마찬가지로 `/api/v1/*` 기준으로 분리되어 있다.
+## 6. Verification Commands
 
-## 6. 레이아웃 구현 후 검증 예정 항목
+- `docker compose ps`
+- `python -m pytest`
+- `npm.cmd run typecheck`
+- `npm.cmd run build`
 
-- 로그인 후 일반 사용자가 `/dashboard`로 안내되는지 확인한다.
-- 모바일에서 글로벌 헤더가 축약되고 햄버거 메뉴로 사이드바가 열리는지 확인한다.
-- UDMS, Worship, Admin에서 현재 모듈에 맞는 contextual submenu가 노출되는지 확인한다.
-- `/display`가 전역 헤더와 사이드바 없이 독립 전체화면으로 유지되는지 확인한다.
-- 공개 랜딩 `/`와 로그인 `/login`이 비로그인 진입점으로 유지되는지 확인한다.
+Container and endpoint checks:
 
-## 7. 검증 기준
+- `GET http://localhost:8000/api/health`
+- `GET http://localhost:8000/api/v1/admin/users`
+- `GET http://localhost:8000/api/v1/udms/boards`
+- `GET http://localhost:8000/api/v1/udms/docs`
+- `GET http://localhost:8000/api/v1/udms/approval-templates`
+- `GET http://localhost:8000/api/v1/udms/target-types`
 
-- `docker compose ps`에서 `mongo`, `backend`, `frontend`가 모두 정상이어야 한다.
-- `GET http://localhost:8000/api/health` 응답은 `{"status":"ok"}`여야 한다.
-- `GET http://localhost:<FRONTEND_PORT>/`는 정상 응답이어야 한다.
-- `GET http://localhost:<FRONTEND_PORT>/admin`는 정상 응답이어야 한다.
-- `GET http://localhost:<FRONTEND_PORT>/display`는 정상 응답이어야 한다.
-- `GET http://localhost:8000/api/v1/admin/users`와 `GET http://localhost:8000/api/v1/udms/boards`는 인증 후 정상 동작해야 한다.
-- `GET http://localhost:8000/api/v1/udms/approval-templates`는 인증 후 정상 동작해야 한다.
-- backend 컨테이너에서 `/app/data/uploads`가 마운트되어 있어야 한다.
+The default Compose mount for UDMS files is:
 
-## 8. API Base URL Notes
+- `./storage/udms:/app/data/storage`
+
+## 7. API Base URL Notes
 
 - `NEXT_PUBLIC_API_BASE_URL` is the public API base URL used by the browser.
 - `API_INTERNAL_BASE_URL` is the internal API base URL used by Next.js on the server side. In Docker Compose this should point to `http://backend:8000`.
-- `FRONTEND_PORT` only changes the public frontend port, such as `http://localhost:3300`. It is not the backend API address.
-- `FRONTEND_APP_URL` is the public frontend URL that the backend uses when it redirects after OAuth login.
-- `CORS_ORIGINS` must include the exact frontend origin that will call the backend with credentials.
+- `FRONTEND_PORT` only changes the public frontend port. It does not change the backend API address.
+- `FRONTEND_APP_URL` is the public frontend URL used by backend redirect flows.
+- `CORS_ORIGINS` must include the exact frontend origin that calls the backend with credentials.
 - `AUTH_COOKIE_SECURE=true` is required for HTTPS deployments.
-- `AUTH_COOKIE_SAMESITE=lax` fits same-site deployments such as `app.example.com` and `api.example.com`. Use `none` only when the frontend and backend are truly cross-site and you must allow credentialed cross-site requests.
+- `AUTH_COOKIE_SAMESITE=lax` fits same-site deployments such as `app.example.com` and `api.example.com`. Use `none` only for true cross-site credentialed setups.
 
 Recommended deployment:
 
-- Preferred: expose the frontend on `https://erp.example.com` and reverse proxy `/api` and `/ws` to the backend. Then set `NEXT_PUBLIC_API_BASE_URL=https://erp.example.com` and `API_INTERNAL_BASE_URL=http://backend:8000`.
-- Separate public backend origin: set `NEXT_PUBLIC_API_BASE_URL` to that backend URL, keep `API_INTERNAL_BASE_URL` on the private service URL, set `FRONTEND_APP_URL` to the frontend URL, and align `CORS_ORIGINS`, `AUTH_COOKIE_SECURE`, and `AUTH_COOKIE_SAMESITE`.
+- Preferred: expose the frontend on `https://erp.example.com` and reverse proxy `/api` and `/ws` to the backend.
+- If the backend is on a separate public origin, align `NEXT_PUBLIC_API_BASE_URL`, `API_INTERNAL_BASE_URL`, `FRONTEND_APP_URL`, `CORS_ORIGINS`, and cookie settings.

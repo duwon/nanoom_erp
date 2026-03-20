@@ -3,38 +3,44 @@
 import { useEffect, useState } from "react";
 
 import { getApprovalTemplates, getBoards } from "@/lib/api";
-import type { ApprovalTemplate, Board } from "@/lib/types";
-import { TipTapEditor } from "@/components/udms/tiptap-editor";
+import type { ApprovalTemplate, Board, DocumentTargetType } from "@/lib/types";
+import { DocumentEditor } from "@/components/udms/document-editor";
+import { useTargetCatalog } from "@/components/udms/use-target-catalog";
 
-type DocumentFormValues = {
-  boardId: string;
+export type DocumentFormValues = {
   title: string;
-  content: string;
+  category: string;
+  tagsText: string;
+  targetType: DocumentTargetType;
+  targetId: string;
+  body: string;
   approvalTemplateId: string | null;
+  changeLog: string;
 };
 
 type DocumentFormProps = {
   initialValues: DocumentFormValues;
   submitLabel: string;
   busyLabel: string;
-  onSubmit: (values: DocumentFormValues) => Promise<void>;
+  onSubmit: (values: {
+    title: string;
+    category: string;
+    tags: string[];
+    targetType: DocumentTargetType;
+    targetId: string;
+    body: string;
+    moduleData: Record<string, unknown>;
+    changeLog?: string;
+  }) => Promise<void>;
 };
 
-export function DocumentForm({
-  initialValues,
-  submitLabel,
-  busyLabel,
-  onSubmit,
-}: DocumentFormProps) {
+export function DocumentForm({ initialValues, submitLabel, busyLabel, onSubmit }: DocumentFormProps) {
   const [boards, setBoards] = useState<Board[]>([]);
   const [templates, setTemplates] = useState<ApprovalTemplate[]>([]);
   const [values, setValues] = useState<DocumentFormValues>(initialValues);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    setValues(initialValues);
-  }, [initialValues]);
+  const { enabledTargets, message: catalogMessage } = useTargetCatalog();
 
   useEffect(() => {
     async function load() {
@@ -42,25 +48,77 @@ export function DocumentForm({
         const [boardItems, templateItems] = await Promise.all([getBoards(), getApprovalTemplates()]);
         setBoards(boardItems);
         setTemplates(templateItems);
-        setValues((current) => ({
-          ...current,
-          boardId: current.boardId || boardItems[0]?.id || "",
-        }));
+        setValues((current) => {
+          if (current.targetType !== "Board") {
+            return current;
+          }
+
+          const nextTargetId = current.targetId || boardItems[0]?.id || "";
+          return nextTargetId === current.targetId ? current : { ...current, targetId: nextTargetId };
+        });
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "문서 작성 데이터를 불러오지 못했습니다.");
+        setMessage(error instanceof Error ? error.message : "Failed to load document form data.");
       }
     }
+
     void load();
   }, []);
+
+  useEffect(() => {
+    if (!enabledTargets.length) {
+      return;
+    }
+
+    setValues((current) => {
+      const nextTargetType = enabledTargets.some((target) => target.targetType === current.targetType)
+        ? current.targetType
+        : enabledTargets[0]?.targetType ?? current.targetType;
+      const nextTargetId = nextTargetType === "Board" ? current.targetId || boards[0]?.id || "" : current.targetId;
+      const nextApprovalTemplateId = nextTargetType === "Approval" ? current.approvalTemplateId : null;
+
+      if (
+        nextTargetType === current.targetType &&
+        nextTargetId === current.targetId &&
+        nextApprovalTemplateId === current.approvalTemplateId
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        targetType: nextTargetType,
+        targetId: nextTargetId,
+        approvalTemplateId: nextApprovalTemplateId,
+      };
+    });
+  }, [boards, enabledTargets]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
     setMessage("");
+
     try {
-      await onSubmit(values);
+      const moduleData =
+        values.targetType === "Approval" && values.approvalTemplateId
+          ? { approval: { templateId: values.approvalTemplateId } }
+          : {};
+
+      await onSubmit({
+        title: values.title,
+        category: values.category,
+        tags: values.tagsText
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+        targetType: values.targetType,
+        targetId: values.targetId,
+        body: values.body,
+        moduleData,
+        changeLog: values.changeLog || undefined,
+      });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "문서 저장에 실패했습니다.");
+      setMessage(error instanceof Error ? error.message : "Failed to save the document.");
     } finally {
       setIsSubmitting(false);
     }
@@ -68,41 +126,97 @@ export function DocumentForm({
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-5">
-      {message ? (
+      {message || catalogMessage ? (
         <div className="rounded-[24px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
-          {message}
+          {message || catalogMessage}
         </div>
       ) : null}
 
       <label className="grid gap-2">
-        <span className="text-sm font-medium text-slate-700">제목</span>
+        <span className="text-sm font-medium text-slate-700">Title</span>
         <input
           value={values.title}
           onChange={(event) => setValues((current) => ({ ...current, title: event.target.value }))}
           className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-amber-400"
-          placeholder="문서 제목"
+          placeholder="Document title"
           required
         />
       </label>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="grid gap-2">
-          <span className="text-sm font-medium text-slate-700">게시판</span>
+          <span className="text-sm font-medium text-slate-700">Category</span>
+          <input
+            value={values.category}
+            onChange={(event) => setValues((current) => ({ ...current, category: event.target.value }))}
+            className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-amber-400"
+            placeholder="BoardPost, Report, Memo"
+          />
+        </label>
+        <label className="grid gap-2">
+          <span className="text-sm font-medium text-slate-700">Tags</span>
+          <input
+            value={values.tagsText}
+            onChange={(event) => setValues((current) => ({ ...current, tagsText: event.target.value }))}
+            className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-amber-400"
+            placeholder="notice, weekly, worship"
+          />
+        </label>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="grid gap-2">
+          <span className="text-sm font-medium text-slate-700">Target Type</span>
           <select
-            value={values.boardId}
-            onChange={(event) => setValues((current) => ({ ...current, boardId: event.target.value }))}
+            value={values.targetType}
+            onChange={(event) =>
+              setValues((current) => ({
+                ...current,
+                targetType: event.target.value as DocumentTargetType,
+                targetId: event.target.value === "Board" ? boards[0]?.id || "" : current.targetId,
+                approvalTemplateId: event.target.value === "Approval" ? current.approvalTemplateId : null,
+              }))
+            }
             className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-amber-400"
           >
-            {boards.map((board) => (
-              <option key={board.id} value={board.id}>
-                {board.name}
+            {enabledTargets.map((target) => (
+              <option key={target.targetType} value={target.targetType}>
+                {target.label}
               </option>
             ))}
           </select>
         </label>
 
         <label className="grid gap-2">
-          <span className="text-sm font-medium text-slate-700">결재 템플릿</span>
+          <span className="text-sm font-medium text-slate-700">Target ID</span>
+          {values.targetType === "Board" ? (
+            <select
+              value={values.targetId}
+              onChange={(event) => setValues((current) => ({ ...current, targetId: event.target.value }))}
+              className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-amber-400"
+            >
+              <option value="">Select a board</option>
+              {boards.map((board) => (
+                <option key={board.id} value={board.id}>
+                  {board.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              value={values.targetId}
+              onChange={(event) => setValues((current) => ({ ...current, targetId: event.target.value }))}
+              className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-amber-400"
+              placeholder="Parent entity id"
+              required
+            />
+          )}
+        </label>
+      </div>
+
+      {values.targetType === "Approval" ? (
+        <label className="grid gap-2">
+          <span className="text-sm font-medium text-slate-700">Approval Template</span>
           <select
             value={values.approvalTemplateId ?? ""}
             onChange={(event) =>
@@ -113,7 +227,7 @@ export function DocumentForm({
             }
             className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-amber-400"
           >
-            <option value="">선택 안 함</option>
+            <option value="">No template</option>
             {templates.map((template) => (
               <option key={template.id} value={template.id}>
                 {template.name}
@@ -121,13 +235,17 @@ export function DocumentForm({
             ))}
           </select>
         </label>
-      </div>
+      ) : null}
+
+      <DocumentEditor value={values.body} onChange={(body) => setValues((current) => ({ ...current, body }))} />
 
       <label className="grid gap-2">
-        <span className="text-sm font-medium text-slate-700">본문</span>
-        <TipTapEditor
-          value={values.content}
-          onChange={(content) => setValues((current) => ({ ...current, content }))}
+        <span className="text-sm font-medium text-slate-700">Change Log</span>
+        <input
+          value={values.changeLog}
+          onChange={(event) => setValues((current) => ({ ...current, changeLog: event.target.value }))}
+          className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-amber-400"
+          placeholder="Why this revision changed"
         />
       </label>
 

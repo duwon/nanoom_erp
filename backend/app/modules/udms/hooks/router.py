@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.store import ConflictError, NotFoundError
 from app.dependencies import get_current_user, get_udms_service
-from app.modules.udms.schemas import TargetPolicyRule, TargetPolicyRuleInput
+from app.modules.udms.schemas import ApprovalCompletedHookPayload, DocumentSummary, ParentDeletedHookPayload
 from app.modules.udms.service import UdmsService
 
 router = APIRouter()
@@ -16,35 +16,36 @@ def _translate_error(error: Exception) -> HTTPException:
     raise error
 
 
-@router.get("/policies", response_model=list[TargetPolicyRule])
-async def list_policies(
-    targetType: str | None = None,
-    targetId: str | None = None,
+@router.post("/hooks/approval-completed", response_model=list[DocumentSummary])
+async def approval_completed(
+    payload: ApprovalCompletedHookPayload,
     current_user: dict = Depends(get_current_user),
     service: UdmsService = Depends(get_udms_service),
-) -> list[TargetPolicyRule]:
+) -> list[DocumentSummary]:
     try:
-        rules = await service.list_target_policies(current_user, target_type=targetType, target_id=targetId)
-        return [TargetPolicyRule.model_validate(rule) for rule in rules]
+        documents = await service.lock_approval_documents(
+            current_user,
+            document_id=payload.document_id,
+            target_id=payload.target_id,
+        )
+        return [DocumentSummary.model_validate(document) for document in documents]
     except (NotFoundError, ConflictError) as exc:
         raise _translate_error(exc) from exc
 
 
-@router.put("/policies/{target_type}/{target_id}", response_model=list[TargetPolicyRule])
-async def replace_policies(
-    target_type: str,
-    target_id: str,
-    payload: list[TargetPolicyRuleInput],
+@router.post("/hooks/parent-deleted", response_model=list[DocumentSummary])
+async def parent_deleted(
+    payload: ParentDeletedHookPayload,
     current_user: dict = Depends(get_current_user),
     service: UdmsService = Depends(get_udms_service),
-) -> list[TargetPolicyRule]:
+) -> list[DocumentSummary]:
     try:
-        rules = await service.replace_target_policies(
+        documents = await service.handle_parent_deleted(
             current_user,
-            target_type,
-            target_id,
-            [item.model_dump(mode="json") for item in payload],
+            target_type=payload.target_type,
+            target_id=payload.target_id,
+            policy=payload.policy,
         )
-        return [TargetPolicyRule.model_validate(rule) for rule in rules]
+        return [DocumentSummary.model_validate(document) for document in documents]
     except (NotFoundError, ConflictError) as exc:
         raise _translate_error(exc) from exc

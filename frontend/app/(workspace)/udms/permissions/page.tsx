@@ -2,53 +2,98 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { getBoardPermissionRules, getBoards, replaceBoardPermissionRules } from "@/lib/api";
-import type { Board, BoardPermissionAction, BoardPermissionRule, PermissionSubjectType } from "@/lib/types";
+import { getBoards, getTargetPolicies, replaceTargetPolicies } from "@/lib/api";
+import type {
+  Board,
+  DocumentTargetType,
+  PermissionSubjectType,
+  TargetPolicyAction,
+  TargetPolicyRule,
+} from "@/lib/types";
 import { ModulePage } from "@/components/module-page";
+import { useTargetCatalog } from "@/components/udms/use-target-catalog";
 
 type DraftRule = {
   subjectType: PermissionSubjectType;
   subjectId: string;
-  actions: BoardPermissionAction[];
+  actions: TargetPolicyAction[];
 };
+
+const createDraftRule = (): DraftRule => ({
+  subjectType: "role",
+  subjectId: "member",
+  actions: ["read"],
+});
 
 export default function UdmsPermissionsPage() {
   const [boards, setBoards] = useState<Board[]>([]);
-  const [selectedBoardId, setSelectedBoardId] = useState("");
-  const [rules, setRules] = useState<BoardPermissionRule[]>([]);
-  const [drafts, setDrafts] = useState<DraftRule[]>([]);
+  const [targetType, setTargetType] = useState<DocumentTargetType>("Board");
+  const [targetId, setTargetId] = useState("");
+  const [rules, setRules] = useState<TargetPolicyRule[]>([]);
+  const [drafts, setDrafts] = useState<DraftRule[]>([createDraftRule()]);
   const [message, setMessage] = useState("");
+  const { enabledTargets, message: catalogMessage } = useTargetCatalog();
 
   useEffect(() => {
-    async function load() {
+    async function loadBoards() {
       try {
-        const [boardItems, ruleItems] = await Promise.all([getBoards(), getBoardPermissionRules()]);
+        const boardItems = await getBoards();
         setBoards(boardItems);
-        setRules(ruleItems);
-        setSelectedBoardId(boardItems[0]?.id ?? "");
+        setTargetId((current) => current || boardItems[0]?.id || "");
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "권한 정보를 불러오지 못했습니다.");
+        setMessage(error instanceof Error ? error.message : "Failed to load boards.");
       }
     }
-    void load();
+
+    void loadBoards();
   }, []);
 
   useEffect(() => {
-    if (!selectedBoardId) {
+    if (!enabledTargets.length) {
       return;
     }
-    const nextDrafts = rules
-      .filter((rule) => rule.boardId === selectedBoardId)
-      .map((rule) => ({ subjectType: rule.subjectType, subjectId: rule.subjectId, actions: rule.actions }));
-    setDrafts(nextDrafts.length ? nextDrafts : [{ subjectType: "role", subjectId: "member", actions: ["read"] }]);
-  }, [rules, selectedBoardId]);
+    if (!enabledTargets.some((target) => target.targetType === targetType)) {
+      const nextTargetType = enabledTargets[0]?.targetType ?? "Board";
+      setTargetType(nextTargetType);
+      setTargetId(nextTargetType === "Board" ? boards[0]?.id || "" : "");
+    }
+  }, [boards, enabledTargets, targetType]);
+
+  useEffect(() => {
+    if (!targetId) {
+      setRules([]);
+      setDrafts([createDraftRule()]);
+      return;
+    }
+
+    async function loadPolicies() {
+      try {
+        const policyItems = await getTargetPolicies({ targetType, targetId });
+        setRules(policyItems);
+        setDrafts(
+          policyItems.length
+            ? policyItems.map((rule) => ({
+                subjectType: rule.subjectType,
+                subjectId: rule.subjectId,
+                actions: rule.actions,
+              }))
+            : [createDraftRule()],
+        );
+        setMessage("");
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Failed to load target policies.");
+      }
+    }
+
+    void loadPolicies();
+  }, [targetId, targetType]);
 
   const currentBoard = useMemo(
-    () => boards.find((board) => board.id === selectedBoardId) ?? null,
-    [boards, selectedBoardId],
+    () => boards.find((board) => board.id === targetId) ?? null,
+    [boards, targetId],
   );
 
-  function toggleAction(index: number, action: BoardPermissionAction) {
+  function toggleAction(index: number, action: TargetPolicyAction) {
     setDrafts((current) =>
       current.map((draft, draftIndex) =>
         draftIndex !== index
@@ -65,55 +110,82 @@ export default function UdmsPermissionsPage() {
 
   return (
     <ModulePage
-      eyebrow="문서 관리 / 권한"
-      title="보드 권한"
-      description="보드별 읽기, 생성, 관리 정책을 role, user, department 단위로 관리합니다."
+      eyebrow="UDMS / Policies"
+      title="Target Policies"
+      description="Target policies define inherited create and read permissions before a document-level ACL override is evaluated."
       highlights={[
-        currentBoard ? `${currentBoard.name} 선택됨` : "보드 선택 필요",
-        "권한 관리 API는 master 전용",
-        "문서 공유는 상세 화면에서 별도 관리",
+        targetType === "Board" && currentBoard ? `Current board: ${currentBoard.name}` : `Current target: ${targetType}`,
+        `${rules.length} stored rules`,
+        "Board is now one target type among the full registry",
       ]}
-      actions={[{ href: "/admin/boards", label: "게시판 관리", variant: "secondary" }]}
+      actions={[{ href: "/admin/boards", label: "Board Admin", variant: "secondary" }]}
     >
-      {message ? (
+      {message || catalogMessage ? (
         <div className="rounded-[24px] border border-slate-200 bg-white/80 px-4 py-4 text-sm text-slate-700">
-          {message}
+          {message || catalogMessage}
         </div>
       ) : null}
 
       <section className="panel rounded-[28px] p-5">
-        <label className="grid gap-2">
-          <span className="text-sm font-medium text-slate-700">게시판 선택</span>
-          <select
-            value={selectedBoardId}
-            onChange={(event) => setSelectedBoardId(event.target.value)}
-            className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-amber-400"
-          >
-            {boards.map((board) => (
-              <option key={board.id} value={board.id}>
-                {board.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-2">
+            <span className="text-sm font-medium text-slate-700">Target Type</span>
+            <select
+              value={targetType}
+              onChange={(event) => {
+                const nextTargetType = event.target.value as DocumentTargetType;
+                setTargetType(nextTargetType);
+                setTargetId(nextTargetType === "Board" ? boards[0]?.id || "" : "");
+              }}
+              className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-amber-400"
+            >
+              {enabledTargets.map((target) => (
+                <option key={target.targetType} value={target.targetType}>
+                  {target.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="grid gap-2">
+            <span className="text-sm font-medium text-slate-700">Target ID</span>
+            {targetType === "Board" ? (
+              <select
+                value={targetId}
+                onChange={(event) => setTargetId(event.target.value)}
+                className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-amber-400"
+              >
+                <option value="">Select a board</option>
+                {boards.map((board) => (
+                  <option key={board.id} value={board.id}>
+                    {board.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={targetId}
+                onChange={(event) => setTargetId(event.target.value)}
+                placeholder="Target entity id"
+                className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-amber-400"
+              />
+            )}
+          </label>
+        </div>
       </section>
 
       <section className="panel rounded-[28px] p-5">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="font-display text-2xl font-semibold text-slate-900">권한 규칙</h2>
+          <h2 className="font-display text-2xl font-semibold text-slate-900">Policy Rules</h2>
           <button
             type="button"
-            onClick={() =>
-              setDrafts((current) => [
-                ...current,
-                { subjectType: "role", subjectId: "member", actions: ["read"] },
-              ])
-            }
+            onClick={() => setDrafts((current) => [...current, createDraftRule()])}
             className="rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900"
           >
-            규칙 추가
+            Add Rule
           </button>
         </div>
+
         <div className="mt-4 grid gap-3">
           {drafts.map((draft, index) => (
             <div key={`${draft.subjectType}-${index}`} className="grid gap-3 rounded-[20px] border border-slate-200 bg-white px-4 py-4">
@@ -131,10 +203,11 @@ export default function UdmsPermissionsPage() {
                   }
                   className="rounded-[16px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-amber-400"
                 >
-                  <option value="role">역할</option>
-                  <option value="department">부서</option>
-                  <option value="user">사용자</option>
+                  <option value="role">Role</option>
+                  <option value="department">Department</option>
+                  <option value="user">User</option>
                 </select>
+
                 <input
                   value={draft.subjectId}
                   onChange={(event) =>
@@ -145,10 +218,12 @@ export default function UdmsPermissionsPage() {
                     )
                   }
                   className="rounded-[16px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-amber-400"
+                  placeholder="member, worship-team, user id"
                 />
               </div>
+
               <div className="flex flex-wrap gap-2">
-                {(["read", "create", "manage"] as BoardPermissionAction[]).map((action) => (
+                {(["read", "create", "manage"] as TargetPolicyAction[]).map((action) => (
                   <button
                     key={action}
                     type="button"
@@ -166,30 +241,40 @@ export default function UdmsPermissionsPage() {
             </div>
           ))}
         </div>
+
         <div className="mt-4 flex justify-end">
           <button
             type="button"
+            disabled={!targetId}
             onClick={async () => {
-              if (!selectedBoardId) {
+              if (!targetId) {
                 return;
               }
+
               try {
-                const updated = await replaceBoardPermissionRules(
-                  selectedBoardId,
+                const updated = await replaceTargetPolicies(
+                  targetType,
+                  targetId,
                   drafts.filter((draft) => draft.subjectId.trim().length > 0),
                 );
-                setRules((current) => [
-                  ...current.filter((rule) => rule.boardId !== selectedBoardId),
-                  ...updated,
-                ]);
-                setMessage("권한 규칙을 저장했습니다.");
+                setRules(updated);
+                setDrafts(
+                  updated.length
+                    ? updated.map((rule) => ({
+                        subjectType: rule.subjectType,
+                        subjectId: rule.subjectId,
+                        actions: rule.actions,
+                      }))
+                    : [createDraftRule()],
+                );
+                setMessage("Target policies saved.");
               } catch (error) {
-                setMessage(error instanceof Error ? error.message : "권한 저장에 실패했습니다.");
+                setMessage(error instanceof Error ? error.message : "Failed to save target policies.");
               }
             }}
-            className="rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white"
+            className="rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
-            권한 저장
+            Save Policies
           </button>
         </div>
       </section>

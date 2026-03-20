@@ -2,7 +2,7 @@ import json
 from functools import lru_cache
 from typing import Annotated, Literal
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -36,7 +36,10 @@ class Settings(BaseSettings):
     auth_dev_seed_email: str = "admin@localhost"
     auth_dev_seed_provider_user_id: str = "dev-master"
     auth_dev_seed_name: str = "개발 관리자"
-    udms_upload_root: str = "/app/data/uploads"
+    udms_storage_dir: str = Field(
+        default="/app/data/storage",
+        validation_alias=AliasChoices("UDMS_STORAGE_DIR", "UDMS_UPLOAD_ROOT"),
+    )
     udms_max_upload_bytes: int = 20 * 1024 * 1024
     cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:3000"]
@@ -72,6 +75,10 @@ class Settings(BaseSettings):
         if self.frontend_app_url:
             return self.frontend_app_url.rstrip("/")
         return f"http://localhost:{self.frontend_port}"
+
+    @property
+    def udms_upload_root(self) -> str:
+        return self.udms_storage_dir
 
 
 @lru_cache

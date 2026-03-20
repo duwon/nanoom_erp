@@ -1,19 +1,20 @@
 import { ModulePage } from "@/components/module-page";
+import { DocumentContainer } from "@/components/udms/document-container";
 
 export default function WorshipSubtitlesInputPage() {
   return (
     <ModulePage
-      eyebrow="예배 / 자막"
-      title="자막 입력"
-      description="예배용 자막 문구를 직접 입력하는 화면입니다."
+      eyebrow="Worship / Subtitle"
+      title="Subtitle Input"
+      description="Subtitle documents can be managed through UDMS with the SubtitleContent target type."
       highlights={[
-        "순서별 입력 분리",
-        "자막 콘텐츠 재사용",
-        "후속 출력 연동",
+        "Use targetType=SubtitleContent",
+        "Revision history stays inside UDMS",
+        "Output screens can consume the same target context later",
       ]}
-      actions={[
-        { href: "/worship/subtitles/output", label: "자막 출력", variant: "secondary" },
-      ]}
-    />
+      actions={[{ href: "/worship/subtitles/output", label: "Subtitle Output", variant: "secondary" }]}
+    >
+      <DocumentContainer targetType="SubtitleContent" targetId="" title="Subtitle Documents" />
+    </ModulePage>
   );
 }

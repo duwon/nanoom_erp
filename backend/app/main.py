@@ -10,12 +10,26 @@ from app.config import get_settings
 from app.core.store import InMemoryAppStore
 from app.modules.udms.repository import InMemoryUdmsRepository, MongoUdmsRepository, UdmsRepository
 from app.modules.udms.service import UdmsService
+from app.modules.udms.targets import TargetRegistry, register_udms_targets
 from app.db.repository import MongoWorshipRepository
 from app.modules.users.repository import InMemoryUserRepository, MongoUserRepository, UserRepository
 from app.modules.users.schemas import SocialProvider
+from app.modules.worship.udms_targets import register_worship_targets
 from app.services.oauth_service import HttpOAuthService, OAuthService
 from app.services.worship_service import WorshipService
 from app.ws.connection_manager import ConnectionManager
+
+
+def build_udms_service(repository: UdmsRepository, settings) -> UdmsService:
+    registry = TargetRegistry()
+    register_udms_targets(registry, repository)
+    register_worship_targets(registry)
+    return UdmsService(
+        repository,
+        settings.udms_storage_dir,
+        settings.udms_max_upload_bytes,
+        registry,
+    )
 
 
 def create_app(
@@ -48,11 +62,7 @@ def create_app(
             active_udms_repository = MongoUdmsRepository(mongo_client[settings.mongo_db])
         else:
             active_udms_repository = InMemoryUdmsRepository.bootstrap()
-        app.state.udms_service = UdmsService(
-            active_udms_repository,
-            settings.udms_upload_root,
-            settings.udms_max_upload_bytes,
-        )
+        app.state.udms_service = build_udms_service(active_udms_repository, settings)
         await app.state.udms_service.seed_defaults()
 
         if user_repository is not None:
@@ -83,17 +93,9 @@ def create_app(
     if service is not None:
         app.state.service = service
     if udms_repository is not None:
-        app.state.udms_service = UdmsService(
-            udms_repository,
-            settings.udms_upload_root,
-            settings.udms_max_upload_bytes,
-        )
+        app.state.udms_service = build_udms_service(udms_repository, settings)
     elif service is not None:
-        app.state.udms_service = UdmsService(
-            InMemoryUdmsRepository.bootstrap(),
-            settings.udms_upload_root,
-            settings.udms_max_upload_bytes,
-        )
+        app.state.udms_service = build_udms_service(InMemoryUdmsRepository.bootstrap(), settings)
     if user_repository is not None:
         app.state.user_repository = user_repository
     elif service is not None:
