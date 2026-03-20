@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Annotated
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import RedirectResponse
@@ -34,6 +34,34 @@ def _frontend_url() -> str:
     return get_settings().resolved_frontend_app_url
 
 
+def _normalize_frontend_origin(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return None
+
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    settings = get_settings()
+    allowed_origins = {
+        settings.resolved_frontend_app_url.rstrip("/"),
+        *(candidate.rstrip("/") for candidate in settings.cors_origins),
+    }
+    if origin not in allowed_origins:
+        return None
+
+    return origin
+
+
+def _resolve_request_frontend_origin(request: Request) -> str:
+    return (
+        _normalize_frontend_origin(request.headers.get("referer"))
+        or _normalize_frontend_origin(request.headers.get("origin"))
+        or _frontend_url()
+    )
+
+
 def _normalize_next_path(value: str | None) -> str:
     if not value or not value.startswith("/") or value.startswith("//"):
         return "/"
@@ -42,13 +70,13 @@ def _normalize_next_path(value: str | None) -> str:
     return value
 
 
-def _build_frontend_redirect(path: str) -> str:
-    return f"{_frontend_url()}{path}"
+def _build_frontend_redirect(path: str, frontend_origin: str | None = None) -> str:
+    return f"{(frontend_origin or _frontend_url()).rstrip('/')}{path}"
 
 
-def _build_login_redirect(error_message: str) -> str:
+def _build_login_redirect(error_message: str, frontend_origin: str | None = None) -> str:
     query = urlencode({"error": error_message})
-    return f"{_frontend_url()}/login?{query}"
+    return f"{(frontend_origin or _frontend_url()).rstrip('/')}/login?{query}"
 
 
 def _resolve_post_login_path(user: dict, requested_next: str) -> str:
@@ -74,7 +102,10 @@ async def oauth_start(
     oauth_service: OAuthService = Depends(get_oauth_service),
 ) -> RedirectResponse:
     requested_next = _normalize_next_path(next_path)
-    state = create_oauth_state_token({"provider": provider.value, "next": requested_next})
+    frontend_origin = _resolve_request_frontend_origin(request)
+    state = create_oauth_state_token(
+        {"provider": provider.value, "next": requested_next, "frontend_origin": frontend_origin}
+    )
     callback_url = str(request.url_for("oauth_callback", provider=provider.value))
 
     if oauth_service.is_dev_seed_available(provider) and not oauth_service.is_configured(provider):
@@ -84,7 +115,7 @@ async def oauth_start(
     try:
         authorization_url = oauth_service.build_authorization_url(provider, callback_url, state)
     except OAuthConfigurationError as exc:
-        return RedirectResponse(url=_build_login_redirect(str(exc)), status_code=307)
+        return RedirectResponse(url=_build_login_redirect(str(exc), frontend_origin), status_code=307)
 
     return RedirectResponse(url=authorization_url, status_code=307)
 
@@ -99,26 +130,40 @@ async def oauth_callback(
     oauth_service: OAuthService = Depends(get_oauth_service),
     repository=Depends(get_user_repository),
 ) -> RedirectResponse:
+    frontend_origin = _frontend_url()
+    if state:
+        try:
+            frontend_origin = (
+                _normalize_frontend_origin(decode_oauth_state_token(state, provider.value).get("frontend_origin"))
+                or frontend_origin
+            )
+        except Exception:
+            frontend_origin = _frontend_url()
+
     if error:
-        return RedirectResponse(url=_build_login_redirect(error), status_code=307)
+        return RedirectResponse(url=_build_login_redirect(error, frontend_origin), status_code=307)
     if not code or not state:
-        return RedirectResponse(url=_build_login_redirect("OAuth callback is incomplete"), status_code=307)
+        return RedirectResponse(
+            url=_build_login_redirect("OAuth callback is incomplete", frontend_origin),
+            status_code=307,
+        )
 
     try:
         state_payload = decode_oauth_state_token(state, provider.value)
     except Exception:
-        return RedirectResponse(url=_build_login_redirect("Invalid OAuth state"), status_code=307)
+        return RedirectResponse(url=_build_login_redirect("Invalid OAuth state", frontend_origin), status_code=307)
 
     requested_next = _normalize_next_path(state_payload.get("next"))
+    frontend_origin = _normalize_frontend_origin(state_payload.get("frontend_origin")) or frontend_origin
     callback_url = str(request.url_for("oauth_callback", provider=provider.value))
 
     try:
         identity = await oauth_service.exchange_code(provider, code, callback_url)
         user = await repository.login_with_oauth(identity)
     except OAuthError as exc:
-        return RedirectResponse(url=_build_login_redirect(str(exc)), status_code=307)
+        return RedirectResponse(url=_build_login_redirect(str(exc), frontend_origin), status_code=307)
 
-    redirect_target = _build_frontend_redirect(_resolve_post_login_path(user, requested_next))
+    redirect_target = _build_frontend_redirect(_resolve_post_login_path(user, requested_next), frontend_origin)
     response = RedirectResponse(url=redirect_target, status_code=307)
     _issue_cookie(response, create_access_token(user["id"]))
     return response

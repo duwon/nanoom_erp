@@ -38,7 +38,7 @@ def _raise_http_error(error: Exception) -> None:
 @router.get("/calendar", response_model=WorshipCalendarResponse)
 async def get_calendar(
     anchor_date: str | None = Query(default=None, alias="anchorDate"),
-    days: int = Query(default=12, ge=1, le=31),
+    days: int = Query(default=12, ge=1, le=42),
     current_user: dict = Depends(get_current_user),
     service: WorshipService = Depends(get_worship_service),
 ) -> WorshipCalendarResponse:

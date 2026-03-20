@@ -102,6 +102,8 @@ class WorshipRepository(Protocol):
 
     async def seed_defaults_if_empty(self) -> None: ...
 
+    async def reset_service_state(self) -> None: ...
+
     async def list_templates(self, *, active_only: bool = False) -> list[dict[str, Any]]: ...
 
     async def get_template(self, template_id: str) -> dict[str, Any]: ...
@@ -417,6 +419,10 @@ class MongoWorshipRepository:
         if await self.presentation_state.count_documents({}) == 0:
             await self.presentation_state.insert_one({"id": "default", **default_presentation_state()})
 
+    async def reset_service_state(self) -> None:
+        await self.services.delete_many({})
+        await self.presentation_state.delete_many({})
+
     async def list_templates(self, *, active_only: bool = False) -> list[dict[str, Any]]:
         query = {"is_active": True} if active_only else {}
         rows = await self.templates.find(query, {"_id": False}).sort("service_kind", ASCENDING).to_list(None)
@@ -532,6 +538,10 @@ class InMemoryWorshipRepository:
         seeded = self.bootstrap()
         self.templates = seeded.templates
         self.presentation = seeded.presentation
+
+    async def reset_service_state(self) -> None:
+        self.services.clear()
+        self.presentation = default_presentation_state()
 
     async def list_templates(self, *, active_only: bool = False) -> list[dict[str, Any]]:
         rows = list(self.templates.values())

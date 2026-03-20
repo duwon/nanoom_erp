@@ -17,6 +17,22 @@ function buildHref(path: string, anchorDate: string | null, serviceId: string | 
   return query ? `${path}?${query}` : path;
 }
 
+function buildTaskEditorHref(
+  task: { sectionIds: string[] },
+  anchorDate: string | null,
+  serviceId: string | null,
+  service?: { sections: Array<{ id: string; sectionType: string }> },
+) {
+  const section = service?.sections.find((candidate) => task.sectionIds.includes(candidate.id));
+  const path =
+    section?.sectionType === "song" || section?.sectionType === "special_song"
+      ? "/worship/songs"
+      : section?.sectionType === "scripture" || section?.sectionType === "message" || section?.sectionType === "notice"
+        ? "/worship/message"
+        : "/worship/assignees";
+  return buildHref(path, anchorDate, serviceId);
+}
+
 export default function WorshipHomePage() {
   const context = useWorshipContext();
   const service = context.service;
@@ -26,22 +42,22 @@ export default function WorshipHomePage() {
     <WorshipWorkspaceShell
       context={context}
       title="예배 운영 대시보드"
-      description="날짜와 예배를 먼저 고정한 뒤, 순서 진행 상태와 담당자 준비 상태를 한 화면에서 확인합니다."
+      description="날짜를 선택해서 해당 예배의 순서와 담당자 진행 상태를 확인합니다."
     >
       {service && summary ? (
         <>
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <section className="grid grid-cols-4 gap-2 md:gap-4">
             {[
               { label: "전체 순서", value: summary.totalSections },
               { label: "완료", value: summary.completeSections },
               { label: "검수 필요", value: summary.reviewSections },
               { label: "남은 업무", value: summary.pendingTaskCount },
             ].map((card) => (
-              <article key={card.label} className="panel rounded-[28px] p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+              <article key={card.label} className="panel rounded-[24px] p-3 sm:p-5">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500 sm:text-xs sm:tracking-[0.28em]">
                   {card.label}
                 </p>
-                <p className="mt-4 font-display text-4xl font-semibold text-slate-900">
+                <p className="mt-2 font-display text-2xl font-semibold text-slate-900 sm:mt-4 sm:text-4xl">
                   {card.value}
                 </p>
               </article>
@@ -63,7 +79,7 @@ export default function WorshipHomePage() {
                   href={buildHref("/worship/review", context.anchorDate, context.serviceId)}
                   className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700"
                 >
-                  검수 화면
+                  검토 화면
                 </Link>
               </div>
 
@@ -82,7 +98,7 @@ export default function WorshipHomePage() {
                           {section.title}
                         </h3>
                         <p className="mt-2 text-sm leading-6 text-slate-600">
-                          {section.detail || section.notes || "세부 내용 없음"}
+                          {section.detail || section.notes || "내용 없음"}
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -123,6 +139,20 @@ export default function WorshipHomePage() {
                       <p className="mt-3 text-xs text-slate-500">
                         마감: {task.dueAt ? new Date(task.dueAt).toLocaleString("ko-KR") : "미설정"}
                       </p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Link
+                          href={buildHref("/worship/assignees", context.anchorDate, context.serviceId)}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50"
+                        >
+                          담당자 입력
+                        </Link>
+                        <Link
+                          href={buildTaskEditorHref(task, context.anchorDate, context.serviceId, service)}
+                          className="rounded-full border border-slate-900 bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+                        >
+                          편집
+                        </Link>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -137,7 +167,7 @@ export default function WorshipHomePage() {
                     { href: "/worship/assignees", label: "담당자 입력함" },
                     { href: "/worship/songs", label: "찬양 / 특송" },
                     { href: "/worship/message", label: "성경 / 말씀" },
-                    { href: "/worship/review", label: "출력 / 검수" },
+                    { href: "/worship/review", label: "출력 / 검토" },
                   ].map((item) => (
                     <Link
                       key={item.href}

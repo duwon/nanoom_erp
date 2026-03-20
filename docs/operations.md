@@ -4,7 +4,7 @@ This document captures the local runbook and quick verification points for the c
 
 ## 1. Local Start
 
-Start all services:
+Start all services with Docker Compose:
 
 ```bash
 docker compose up --build -d
@@ -16,27 +16,36 @@ Stop all services:
 docker compose down
 ```
 
+For local frontend development with a Docker backend, run:
+
+```bash
+cd frontend
+npm.cmd run dev
+```
+
+Use `http://localhost:3400` for the local frontend and `http://localhost:8000` for the Docker backend API.
+
 ## 2. Local URLs
 
-- Frontend home: `http://localhost:3000/`
-- Login: `http://localhost:3000/login`
-- Admin: `http://localhost:3000/admin`
-- Display: `http://localhost:3000/display`
+- Frontend home: `http://localhost:3400/`
+- Login: `http://localhost:3400/login`
+- Admin: `http://localhost:3400/admin`
+- Display: `http://localhost:3400/display`
 - Backend docs: `http://localhost:8000/docs`
 
-If port `3000` is already in use on Windows, change `FRONTEND_PORT` in `.env`.
+If port `3400` is already in use on Windows, change `FRONTEND_PORT` in `.env`.
 
 Example:
 
 ```env
-FRONTEND_PORT=3300
+FRONTEND_PORT=3400
 ```
 
-Then access the frontend at `http://localhost:3300`.
+Then access the frontend at `http://localhost:3400`.
 
 ## 3. Important Environment Variables
 
-- `FRONTEND_PORT`: public frontend port
+- `FRONTEND_PORT`: public frontend port for local development
 - `MONGO_URL`: MongoDB connection string
 - `MONGO_DB`: MongoDB database name
 - `NEXT_PUBLIC_API_BASE_URL`: browser-facing API base URL
@@ -108,7 +117,7 @@ The default Compose mount for UDMS files is:
 
 - `NEXT_PUBLIC_API_BASE_URL` is the public API base URL used by the browser.
 - `API_INTERNAL_BASE_URL` is the internal API base URL used by Next.js on the server side. In Docker Compose this should point to `http://backend:8000`.
-- `FRONTEND_PORT` only changes the public frontend port. It does not change the backend API address.
+- `FRONTEND_PORT` only changes the public frontend port for local development. Docker Compose still exposes the frontend on `http://localhost:3300`.
 - `FRONTEND_APP_URL` is the public frontend URL used by backend redirect flows.
 - `CORS_ORIGINS` must include the exact frontend origin that calls the backend with credentials.
 - `AUTH_COOKIE_SECURE=true` is required for HTTPS deployments.

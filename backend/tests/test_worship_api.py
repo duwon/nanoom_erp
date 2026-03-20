@@ -74,6 +74,14 @@ def test_worship_calendar_materializes_seeded_services() -> None:
     assert {"dawn", "sunday1", "sunday2", "sundayPm"}.issubset(sunday_services)
 
 
+def test_worship_calendar_accepts_42_day_workspace_window() -> None:
+    client = create_active_workspace_client()
+
+    payload = get_calendar_payload(client, days=42)
+
+    assert len(payload["days"]) == 42
+
+
 def test_worship_service_update_detects_version_conflict() -> None:
     client = create_active_workspace_client()
     service = find_service(get_calendar_payload(client), target_date=SUNDAY_ANCHOR_DATE, service_kind="sunday1")
@@ -349,3 +357,25 @@ def test_worship_order_target_requires_existing_parent() -> None:
         },
     )
     assert missing_parent.status_code == 404
+
+
+def test_worship_service_materializes_udms_order_document_only_visible_in_generic_list() -> None:
+    client = create_active_workspace_client()
+    service = find_service(get_calendar_payload(client), target_date=SUNDAY_ANCHOR_DATE, service_kind="sunday1")
+
+    order_docs_response = client.get(
+        "/api/v1/udms/docs",
+        params={"targetType": "WorshipOrder", "targetId": service["id"]},
+    )
+    assert order_docs_response.status_code == 200
+    order_docs = order_docs_response.json()
+    assert len(order_docs) == 1
+    assert order_docs[0]["link"]["targetType"] == "WorshipOrder"
+    assert order_docs[0]["moduleData"]["service_meta"]["id"] == service["id"]
+
+    hidden_docs_response = client.get(
+        "/api/v1/udms/docs",
+        params={"targetType": "WorshipContent", "targetId": service["id"]},
+    )
+    assert hidden_docs_response.status_code == 200
+    assert hidden_docs_response.json() == []

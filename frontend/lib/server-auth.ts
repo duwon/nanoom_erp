@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { getServerApiBaseUrl } from "@/lib/api-base-url";
+import { getPublicApiBaseUrl, getServerApiBaseUrl } from "@/lib/api-base-url";
 import type { AuthUser } from "@/lib/types";
 
 export function isProfileComplete(user: Pick<AuthUser, "name" | "position" | "department">) {
@@ -31,17 +31,33 @@ export function getAttentionRedirect(user: AuthUser, requestedPath = "/dashboard
 export async function getCurrentUserServer(): Promise<AuthUser | null> {
   const requestHeaders = await headers();
   const cookie = requestHeaders.get("cookie");
-  const authMeUrl = `${getServerApiBaseUrl()}/api/v1/auth/me`;
-  let response: Response;
+  const requestInit: RequestInit = { cache: "no-store" };
+  if (cookie) {
+    requestInit.headers = { cookie };
+  }
+  const primaryBaseUrl = getServerApiBaseUrl();
+  const fallbackBaseUrl = getPublicApiBaseUrl();
 
+  async function fetchCurrentUser(baseUrl: string) {
+    return fetch(`${baseUrl}/api/v1/auth/me`, requestInit);
+  }
+
+  let response: Response;
   try {
-    response = await fetch(authMeUrl, {
-      cache: "no-store",
-      headers: cookie ? { cookie } : {},
-    });
+    response = await fetchCurrentUser(primaryBaseUrl);
   } catch (error) {
-    console.error("Failed to fetch current user on the server:", authMeUrl, error);
-    return null;
+    if (primaryBaseUrl !== fallbackBaseUrl) {
+      try {
+        response = await fetchCurrentUser(fallbackBaseUrl);
+      } catch (fallbackError) {
+        console.error("Failed to fetch current user on the server:", `${primaryBaseUrl}/api/v1/auth/me`, error);
+        console.error("Fallback fetch also failed:", `${fallbackBaseUrl}/api/v1/auth/me`, fallbackError);
+        return null;
+      }
+    } else {
+      console.error("Failed to fetch current user on the server:", `${primaryBaseUrl}/api/v1/auth/me`, error);
+      return null;
+    }
   }
 
   if (response.status === 401) {

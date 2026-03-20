@@ -8,6 +8,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.core.store import ConflictError, NotFoundError, iso_now
+from app.modules.udms.repository import UdmsRepository
 from app.modules.worship.adapters import PresentationAdapter, ScriptureAdapter, SongCatalogAdapter
 from app.modules.worship.repository import WorshipRepository, template_applies
 from app.modules.worship.schemas import (
@@ -28,6 +29,7 @@ from app.modules.worship.schemas import (
     WorshipTemplate,
     WorshipTemplateUpsert,
 )
+from app.modules.worship.udms_bridge import WorshipUdmsBridge
 from app.schemas.display import DisplayState
 from app.schemas.order_item import OrderItem, OrderItemUpdate
 from app.ws.connection_manager import ConnectionManager
@@ -56,6 +58,7 @@ class WorshipService:
         presentation_adapter: PresentationAdapter,
         timezone_name: str = "Asia/Seoul",
         frontend_app_url: str = "http://localhost:3000",
+        udms_repository: UdmsRepository | None = None,
     ):
         self.repository = repository
         self.ws_manager = ws_manager
@@ -64,8 +67,17 @@ class WorshipService:
         self.presentation_adapter = presentation_adapter
         self.timezone = ZoneInfo(timezone_name)
         self.frontend_app_url = frontend_app_url.rstrip("/")
+        self.udms_repository = udms_repository
+        self.udms_bridge = WorshipUdmsBridge(udms_repository) if udms_repository is not None else None
+
+    def attach_udms_repository(self, repository: UdmsRepository) -> None:
+        self.udms_repository = repository
+        self.udms_bridge = WorshipUdmsBridge(repository)
 
     async def seed_defaults(self) -> None:
+        await self.repository.reset_service_state()
+        if self.udms_bridge is not None:
+            await self.udms_bridge.reset()
         await self.repository.ensure_indexes()
         await self.repository.seed_defaults_if_empty()
 
@@ -133,6 +145,9 @@ class WorshipService:
     def _sync_service(self, service: dict[str, Any]) -> dict[str, Any]:
         service["sections"] = sorted(service.get("sections", []), key=lambda item: item["order"])
         self._sync_task_statuses(service)
+        service["task_guest_access"] = {
+            task["id"]: deepcopy(task.get("guest_access", {})) for task in service.get("tasks", [])
+        }
         service["review_summary"] = self._compute_review_summary(service)
         service["status"] = self._compute_service_status(service)
         return service
@@ -140,7 +155,7 @@ class WorshipService:
     def _serialize_service(self, service: dict[str, Any]) -> WorshipServiceDetail:
         return WorshipServiceDetail.model_validate(self._sync_service(service))
 
-    def _materialize_service(self, template: dict[str, Any], target_date: date) -> dict[str, Any]:
+    async def _materialize_service(self, template: dict[str, Any], target_date: date) -> dict[str, Any]:
         now = iso_now()
         service_id = f"svc-{target_date.isoformat()}-{template['service_kind']}"
         start_at = self._service_datetime(target_date, template["start_time"]).isoformat()
@@ -205,6 +220,14 @@ class WorshipService:
             "export_snapshot": {},
             "metadata": {"created_at": now, "updated_at": now},
         }
+        service = self._sync_service(service)
+        if self.udms_bridge is not None:
+            service = await self.udms_bridge.sync_service_documents(
+                service,
+                actor_id="system",
+                change_log="Materialize worship service",
+                create_policies=True,
+            )
         return self._sync_service(service)
 
     async def _ensure_calendar_materialized(self, anchor: date, days: int) -> list[dict[str, Any]]:
@@ -225,7 +248,7 @@ class WorshipService:
                 key = (target.isoformat(), template["service_kind"])
                 if key in existing:
                     continue
-                service = self._materialize_service(template, target)
+                service = await self._materialize_service(template, target)
                 existing[key] = await self.repository.save_service(service)
                 created.append(existing[key])
         services = list(existing.values())
@@ -281,8 +304,17 @@ class WorshipService:
         for key in ("summary", "service_name", "start_at"):
             if payload.get(key) is not None:
                 service[key] = payload[key]
-        service["version"] += 1
         service["metadata"]["updated_at"] = iso_now()
+        service = self._sync_service(service)
+        if self.udms_bridge is not None:
+            service = await self.udms_bridge.sync_service_documents(
+                service,
+                actor_id=user["id"],
+                change_log="Update worship service",
+                create_policies=False,
+            )
+        else:
+            service["version"] += 1
         return self._serialize_service(await self.repository.save_service(self._sync_service(service)))
 
     async def update_section(self, user: dict[str, Any], service_id: str, section_id: str, payload: dict[str, Any]) -> WorshipServiceDetail:
@@ -296,8 +328,17 @@ class WorshipService:
             if key in payload and payload[key] is not None:
                 section[key] = payload[key]
         section["updated_at"] = iso_now()
-        service["version"] += 1
         service["metadata"]["updated_at"] = iso_now()
+        service = self._sync_service(service)
+        if self.udms_bridge is not None:
+            service = await self.udms_bridge.sync_service_documents(
+                service,
+                actor_id=user["id"],
+                change_log=f"Update worship section {section_id}",
+                create_policies=False,
+            )
+        else:
+            service["version"] += 1
         return self._serialize_service(await self.repository.save_service(self._sync_service(service)))
 
     async def reorder_sections(self, user: dict[str, Any], service_id: str, payload: dict[str, Any]) -> WorshipServiceDetail:
@@ -311,8 +352,17 @@ class WorshipService:
             sections[item["section_id"]]["order"] = item["order"]
             sections[item["section_id"]]["updated_at"] = iso_now()
         service["sections"] = list(sections.values())
-        service["version"] += 1
         service["metadata"]["updated_at"] = iso_now()
+        service = self._sync_service(service)
+        if self.udms_bridge is not None:
+            service = await self.udms_bridge.sync_service_documents(
+                service,
+                actor_id=user["id"],
+                change_log="Reorder worship sections",
+                create_policies=False,
+            )
+        else:
+            service["version"] += 1
         return self._serialize_service(await self.repository.save_service(self._sync_service(service)))
 
     def _guest_expires_at(self, due_at: str | None) -> str:
@@ -338,8 +388,16 @@ class WorshipService:
             "revoked_at": None,
             "last_opened_at": None,
         }
-        service["version"] += 1
         service["metadata"]["updated_at"] = iso_now()
+        service = self._sync_service(service)
+        if self.udms_bridge is not None:
+            service = await self.udms_bridge.touch_order_document(
+                service,
+                actor_id=user["id"],
+                change_log=f"Issue guest link for {task_id}",
+            )
+        else:
+            service["version"] += 1
         await self.repository.save_service(self._sync_service(service))
         return WorshipGuestLinkResponse(
             task_id=task_id,
@@ -414,8 +472,17 @@ class WorshipService:
                 section["notes"] = str(values["notes"])
             section["status"] = WorshipServiceStatus.review.value
             section["updated_at"] = iso_now()
-        service["version"] += 1
         service["metadata"]["updated_at"] = iso_now()
+        service = self._sync_service(service)
+        if self.udms_bridge is not None:
+            service = await self.udms_bridge.sync_service_documents(
+                service,
+                actor_id="system",
+                change_log=f"Submit guest input for {task['id']}",
+                create_policies=False,
+            )
+        else:
+            service["version"] += 1
         await self.repository.save_service(self._sync_service(service))
         return await self.get_guest_input(token)
 

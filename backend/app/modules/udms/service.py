@@ -285,6 +285,13 @@ class UdmsService:
             await descriptor.parent_validator(target_id)
         return descriptor
 
+    def _is_public_document_root(self, root: dict[str, Any]) -> bool:
+        try:
+            descriptor = self.registry.get_target_descriptor(root["link"]["target_type"])
+        except KeyError:
+            return False
+        return descriptor.is_enabled
+
     async def list_target_types(self) -> list[dict[str, Any]]:
         return [
             {
@@ -349,6 +356,8 @@ class UdmsService:
         visible: list[dict[str, Any]] = []
         lowered = (query or "").strip().lower()
         for root in documents:
+            if not self._is_public_document_root(root):
+                continue
             if not await self._can_read_document(user, root):
                 continue
             payload = await self._build_document_payload(user, root, detail=False)
@@ -365,6 +374,8 @@ class UdmsService:
 
     async def get_document(self, user: dict[str, Any], document_id: str) -> dict[str, Any]:
         root = await self.repository.get_document(document_id)
+        if not self._is_public_document_root(root):
+            raise NotFoundError(f"Document '{document_id}' was not found.")
         if not await self._can_read_document(user, root):
             raise NotFoundError(f"Document '{document_id}' was not found.")
         return await self._build_document_payload(user, root, detail=True)
@@ -509,6 +520,8 @@ class UdmsService:
     async def list_shared_documents(self, user: dict[str, Any]) -> dict[str, Any]:
         overview = {"accessible": [], "external_links": []}
         for root in await self.repository.list_documents():
+            if not self._is_public_document_root(root):
+                continue
             acl_sources = []
             for rule in root["security"].get("acl", []):
                 if rule.get("effect") == DocumentAclEffect.deny.value:

@@ -45,10 +45,18 @@ class FakeOAuthService:
         return identity
 
 
-def issue_oauth_login(client, code: str, provider: str = "google", next_path: str = "/"):
+def issue_oauth_login(
+    client,
+    code: str,
+    provider: str = "google",
+    next_path: str = "/",
+    referer: str | None = None,
+):
+    headers = {"referer": referer} if referer else None
     start_response = client.get(
         f"/api/v1/auth/oauth/{provider}/start",
         params={"next": next_path},
+        headers=headers,
         follow_redirects=False,
     )
     assert start_response.status_code == 307
@@ -65,6 +73,27 @@ def issue_oauth_login(client, code: str, provider: str = "google", next_path: st
 
 def frontend_url() -> str:
     return get_settings().resolved_frontend_app_url
+
+
+def test_social_login_redirects_back_to_requesting_frontend(monkeypatch) -> None:
+    monkeypatch.setenv("FRONTEND_APP_URL", "http://localhost:3400")
+    monkeypatch.setenv("CORS_ORIGINS", "http://localhost:3300,http://localhost:3400")
+    get_settings.cache_clear()
+
+    try:
+        repository = InMemoryUserRepository.bootstrap()
+        client = create_test_client(user_repository=repository, oauth_service=FakeOAuthService())
+
+        callback_response = issue_oauth_login(
+            client,
+            "master-login",
+            next_path="/admin",
+            referer="http://localhost:3300/login",
+        )
+
+        assert callback_response.headers["location"] == "http://localhost:3300/admin"
+    finally:
+        get_settings.cache_clear()
 
 
 def activate_workspace_user(member_client, admin_client, *, role: str = "editor") -> str:

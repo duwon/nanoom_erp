@@ -407,6 +407,10 @@ class UdmsRepository(Protocol):
 
     async def seed_defaults_if_empty(self) -> None: ...
 
+    async def delete_documents_by_target_types(self, target_types: list[str]) -> int: ...
+
+    async def delete_target_policies_by_target_types(self, target_types: list[str]) -> int: ...
+
     async def list_boards(self) -> list[dict[str, Any]]: ...
 
     async def get_board(self, board_id: str) -> dict[str, Any]: ...
@@ -438,6 +442,8 @@ class UdmsRepository(Protocol):
     async def create_working_copy(self, document_id: str, actor_id: str) -> dict[str, Any]: ...
 
     async def publish_document(self, document_id: str, actor_id: str) -> dict[str, Any]: ...
+
+    async def publish_updated_document(self, document_id: str, payload: dict[str, Any], actor_id: str) -> dict[str, Any]: ...
 
     async def rollback_document(self, document_id: str, target_version: int, actor_id: str) -> dict[str, Any]: ...
 
@@ -509,6 +515,24 @@ class MongoUdmsRepository:
             await self.target_policies.insert_many(_seed_target_policies(iso_now()))
         if await self.approval_templates.count_documents({}) == 0:
             await self.approval_templates.insert_many(_seed_approval_templates(iso_now()))
+
+    async def delete_documents_by_target_types(self, target_types: list[str]) -> int:
+        if not target_types:
+            return 0
+        query = {"link.target_type": {"$in": target_types}}
+        documents = await self.documents.find(query, {"_id": False, "id": True}).to_list(None)
+        document_ids = [document["id"] for document in documents]
+        if not document_ids:
+            return 0
+        await self.documents.delete_many({"id": {"$in": document_ids}})
+        await self.revisions.delete_many({"document_id": {"$in": document_ids}})
+        return len(document_ids)
+
+    async def delete_target_policies_by_target_types(self, target_types: list[str]) -> int:
+        if not target_types:
+            return 0
+        result = await self.target_policies.delete_many({"target_type": {"$in": target_types}})
+        return int(getattr(result, "deleted_count", 0))
 
     async def _migrate_legacy_if_needed(self) -> None:
         legacy_documents = await self.documents.find({"origin_doc_id": {"$exists": True}}, {"_id": False}).to_list(None)
@@ -706,6 +730,41 @@ class MongoUdmsRepository:
         root["updated_by"] = actor_id
         await self.documents.replace_one({"id": document_id}, root)
         return root
+
+    async def publish_updated_document(self, document_id: str, payload: dict[str, Any], actor_id: str) -> dict[str, Any]:
+        root = await self.get_document(document_id)
+        revision_id = root.get("working_revision_id") or root.get("published_revision_id")
+        if revision_id is None:
+            raise ConflictError("No revision exists to update.")
+        base_revision = await self.get_revision(revision_id)
+        next_header = deepcopy(base_revision["header"])
+        if payload.get("title") is not None:
+            next_header["title"] = payload["title"]
+        if payload.get("category") is not None:
+            next_header["category"] = payload["category"]
+        if payload.get("tags") is not None:
+            next_header["tags"] = payload["tags"]
+        next_module_data = deepcopy(base_revision.get("module_data", {}))
+        if payload.get("module_data") is not None:
+            next_module_data = deepcopy(payload["module_data"])
+        next_root, next_revision = _clone_revision(
+            root,
+            base_revision,
+            actor_id=actor_id,
+            header=next_header,
+            body=payload.get("body"),
+            module_data=next_module_data,
+            editor_type=payload.get("editor_type"),
+            change_log=payload.get("change_log", ""),
+        )
+        next_root["published_revision_id"] = next_revision["id"]
+        next_root["working_revision_id"] = None
+        next_root["header"] = deepcopy(next_revision["header"])
+        next_root["module_data"] = deepcopy(next_revision.get("module_data", {}))
+        next_root["state"]["status"] = DocumentStatus.published.value
+        await self.documents.replace_one({"id": document_id}, next_root)
+        await self.revisions.insert_one(next_revision)
+        return next_root
 
     async def rollback_document(self, document_id: str, target_version: int, actor_id: str) -> dict[str, Any]:
         root = await self.get_document(document_id)
@@ -972,6 +1031,37 @@ class InMemoryUdmsRepository:
         self.target_policies = seeded.target_policies
         self.approval_templates = seeded.approval_templates
 
+    async def delete_documents_by_target_types(self, target_types: list[str]) -> int:
+        if not target_types:
+            return 0
+        document_ids = [
+            document_id
+            for document_id, document in list(self.documents.items())
+            if document.get("link", {}).get("target_type") in target_types
+        ]
+        for document_id in document_ids:
+            self.documents.pop(document_id, None)
+        revision_ids = [
+            revision_id
+            for revision_id, revision in list(self.revisions.items())
+            if revision.get("document_id") in document_ids
+        ]
+        for revision_id in revision_ids:
+            self.revisions.pop(revision_id, None)
+        return len(document_ids)
+
+    async def delete_target_policies_by_target_types(self, target_types: list[str]) -> int:
+        if not target_types:
+            return 0
+        policy_ids = [
+            policy_id
+            for policy_id, policy in list(self.target_policies.items())
+            if policy.get("target_type") in target_types
+        ]
+        for policy_id in policy_ids:
+            self.target_policies.pop(policy_id, None)
+        return len(policy_ids)
+
     async def list_boards(self) -> list[dict[str, Any]]:
         return [deepcopy(item) for item in sorted(self.boards.values(), key=lambda row: row["name"])]
 
@@ -1154,6 +1244,47 @@ class InMemoryUdmsRepository:
         root["metadata"]["updated_at"] = iso_now()
         root["updated_by"] = actor_id
         return deepcopy(root)
+
+    async def publish_updated_document(self, document_id: str, payload: dict[str, Any], actor_id: str) -> dict[str, Any]:
+        root = self.documents.get(document_id)
+        if root is None:
+            raise NotFoundError(f"Document '{document_id}' was not found.")
+        revision_id = root.get("working_revision_id") or root.get("published_revision_id")
+        if revision_id is None:
+            raise ConflictError("No revision exists to update.")
+        base_revision = self.revisions.get(revision_id)
+        if base_revision is None:
+            raise NotFoundError(f"Revision '{revision_id}' was not found.")
+        next_header = deepcopy(base_revision["header"])
+        if payload.get("title") is not None:
+            next_header["title"] = payload["title"]
+        if payload.get("category") is not None:
+            next_header["category"] = payload["category"]
+        if payload.get("tags") is not None:
+            next_header["tags"] = payload["tags"]
+        next_module_data = deepcopy(base_revision.get("module_data", {}))
+        if payload.get("module_data") is not None:
+            next_module_data = deepcopy(payload["module_data"])
+        next_root, next_revision = _clone_revision(
+            root,
+            base_revision,
+            actor_id=actor_id,
+            header=next_header,
+            body=payload.get("body"),
+            module_data=next_module_data,
+            editor_type=payload.get("editor_type"),
+            change_log=payload.get("change_log", ""),
+        )
+        next_root["published_revision_id"] = next_revision["id"]
+        next_root["working_revision_id"] = None
+        next_root["header"] = deepcopy(next_revision["header"])
+        next_root["module_data"] = deepcopy(next_revision.get("module_data", {}))
+        next_root["state"]["status"] = DocumentStatus.published.value
+        next_root["metadata"]["updated_at"] = iso_now()
+        next_root["updated_by"] = actor_id
+        self.documents[document_id] = next_root
+        self.revisions[next_revision["id"]] = next_revision
+        return deepcopy(next_root)
 
     async def rollback_document(self, document_id: str, target_version: int, actor_id: str) -> dict[str, Any]:
         root = self.documents.get(document_id)
