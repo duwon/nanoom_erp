@@ -49,3 +49,22 @@ a {
   backdrop-filter: blur(18px);
   box-shadow: 0 24px 80px rgba(15, 23, 42, 0.16);
 }
+
+.ProseMirror {
+  min-height: 280px;
+}
+
+.ProseMirror:focus {
+  outline: none;
+}
+
+.ProseMirror table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  padding: 0.5rem 0.75rem;
+}

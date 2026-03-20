@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     auth_dev_seed_email: str = "admin@localhost"
     auth_dev_seed_provider_user_id: str = "dev-master"
     auth_dev_seed_name: str = "개발 관리자"
+    udms_upload_root: str = "/app/data/uploads"
+    udms_max_upload_bytes: int = 20 * 1024 * 1024
     cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:3000"]
     )

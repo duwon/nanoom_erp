@@ -153,7 +153,7 @@ def test_master_can_activate_user_and_active_user_can_access_udms() -> None:
     assert approve_response.json()["role"] == "editor"
 
     relogin_callback = issue_oauth_login(member_client, "new-member")
-    assert relogin_callback.headers["location"] == f"{frontend_url()}/"
+    assert relogin_callback.headers["location"] == f"{frontend_url()}/dashboard"
 
     boards_response = member_client.get("/api/v1/udms/boards")
     assert boards_response.status_code == 200
@@ -186,3 +186,94 @@ def test_blocked_user_keeps_me_access_but_loses_workspace_access() -> None:
 
     boards_response = member_client.get("/api/v1/udms/boards")
     assert boards_response.status_code == 403
+
+
+def test_editor_can_create_publish_and_version_document_with_share_inheritance() -> None:
+    repository = InMemoryUserRepository.bootstrap()
+    oauth_service = FakeOAuthService()
+    editor_client = create_test_client(user_repository=repository, oauth_service=oauth_service)
+    admin_client = create_test_client(user_repository=repository, oauth_service=oauth_service)
+
+    issue_oauth_login(editor_client, "new-member")
+    editor_client.put(
+        "/api/v1/users/me/profile",
+        json={"name": "홍길동", "position": "성도", "department": "새가족부"},
+    )
+    member_id = editor_client.get("/api/v1/auth/me").json()["id"]
+
+    issue_oauth_login(admin_client, "master-login")
+    admin_client.put(
+        f"/api/v1/admin/users/{member_id}",
+        json={"role": "editor", "status": "active"},
+    )
+    issue_oauth_login(editor_client, "new-member")
+
+    created = editor_client.post(
+        "/api/v1/udms/documents",
+        json={
+            "boardId": "board-notice",
+            "title": "주보 초안",
+            "content": "<p>첫 번째 초안</p>",
+            "approvalTemplateId": "approval-general",
+        },
+    )
+    assert created.status_code == 200
+    created_payload = created.json()
+    assert created_payload["status"] == "draft"
+    assert created_payload["originDocId"] == created_payload["id"]
+    assert created_payload["versionNumber"] == 1
+
+    share_response = editor_client.put(
+        f"/api/v1/udms/documents/{created_payload['id']}/shares",
+        json=[{"targetType": "department", "targetId": "새가족부", "permission": "read"}],
+    )
+    assert share_response.status_code == 200
+    assert share_response.json()[0]["targetId"] == "새가족부"
+
+    published = editor_client.post(f"/api/v1/udms/documents/{created_payload['id']}/publish", json={})
+    assert published.status_code == 200
+    assert published.json()["status"] == "published"
+
+    next_version = editor_client.post(f"/api/v1/udms/documents/{created_payload['id']}/versions", json={})
+    assert next_version.status_code == 200
+    next_payload = next_version.json()
+    assert next_payload["status"] == "draft"
+    assert next_payload["prevDocId"] == created_payload["id"]
+    assert next_payload["originDocId"] == created_payload["originDocId"]
+    assert next_payload["versionNumber"] == 2
+    assert next_payload["shares"][0]["targetId"] == "새가족부"
+
+    versions = editor_client.get(f"/api/v1/udms/documents/{next_payload['id']}/versions")
+    assert versions.status_code == 200
+    assert [item["versionNumber"] for item in versions.json()] == [2, 1]
+
+
+def test_active_member_can_read_documents_but_cannot_create_without_board_create_permission() -> None:
+    repository = InMemoryUserRepository.bootstrap()
+    oauth_service = FakeOAuthService()
+    member_client = create_test_client(user_repository=repository, oauth_service=oauth_service)
+    admin_client = create_test_client(user_repository=repository, oauth_service=oauth_service)
+
+    issue_oauth_login(member_client, "new-member")
+    member_client.put(
+        "/api/v1/users/me/profile",
+        json={"name": "홍길동", "position": "성도", "department": "새가족부"},
+    )
+    member_id = member_client.get("/api/v1/auth/me").json()["id"]
+
+    issue_oauth_login(admin_client, "master-login")
+    admin_client.put(
+        f"/api/v1/admin/users/{member_id}",
+        json={"role": "member", "status": "active"},
+    )
+    issue_oauth_login(member_client, "new-member")
+
+    boards_response = member_client.get("/api/v1/udms/boards")
+    assert boards_response.status_code == 200
+    assert any(board["id"] == "board-notice" for board in boards_response.json())
+
+    create_response = member_client.post(
+        "/api/v1/udms/documents",
+        json={"boardId": "board-notice", "title": "멤버 작성", "content": "<p>권한 없음</p>"},
+    )
+    assert create_response.status_code == 409

@@ -51,6 +51,7 @@ FRONTEND_PORT=3300
 - `MONGO_DB`: 사용할 데이터베이스 이름
 - `NEXT_PUBLIC_API_BASE_URL`: 프론트에서 호출할 백엔드 API 주소
 - `NEXT_PUBLIC_WS_URL`: 프론트에서 사용할 WebSocket 주소
+- `UDMS_UPLOAD_ROOT`: 백엔드 컨테이너 내부 UDMS 첨부 저장 경로
 
 운영 환경에서는 프론트 포트와 백엔드 CORS 허용 목록이 일치해야 한다.
 
@@ -61,6 +62,8 @@ FRONTEND_PORT=3300
 - `/admin`에서 목록 조회와 저장이 가능한지 확인한다.
 - `/display`가 초기 상태와 실시간 갱신을 받는지 확인한다.
 - `/api/v1/admin/users`와 `/api/v1/udms/documents`가 정상 동작하는지 확인한다.
+- `/api/v1/udms/approval-templates`가 정상 동작하는지 확인한다.
+- 문서 첨부 업로드와 다운로드가 정상 동작하는지 확인한다.
 
 ## 5. 향후 확장 라우트
 
@@ -101,6 +104,8 @@ FRONTEND_PORT=3300
 - `GET http://localhost:<FRONTEND_PORT>/admin`는 정상 응답이어야 한다.
 - `GET http://localhost:<FRONTEND_PORT>/display`는 정상 응답이어야 한다.
 - `GET http://localhost:8000/api/v1/admin/users`와 `GET http://localhost:8000/api/v1/udms/boards`는 인증 후 정상 동작해야 한다.
+- `GET http://localhost:8000/api/v1/udms/approval-templates`는 인증 후 정상 동작해야 한다.
+- backend 컨테이너에서 `/app/data/uploads`가 마운트되어 있어야 한다.
 
 ## 8. API Base URL Notes
 

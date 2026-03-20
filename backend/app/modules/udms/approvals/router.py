@@ -1,33 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 
-from app.core.store import NotFoundError
-from app.dependencies import get_app_store, get_current_user
-from app.modules.udms.approvals.schemas import ApprovalCreate
-from app.modules.udms.dependencies import require_admin
+from app.dependencies import get_current_user, get_udms_service
+from app.modules.udms.schemas import ApprovalTemplate
+from app.modules.udms.service import UdmsService
 
 router = APIRouter()
 
 
-@router.get("/documents/{document_id}/approvals")
-async def list_approvals(
-    document_id: str,
+@router.get("/approval-templates", response_model=list[ApprovalTemplate])
+async def list_approval_templates(
     current_user: dict = Depends(get_current_user),
-    store=Depends(get_app_store),
-) -> list[dict]:
-    try:
-        return store.list_approvals(document_id)
-    except NotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-
-
-@router.post("/documents/{document_id}/approvals")
-async def add_approval(
-    document_id: str,
-    payload: ApprovalCreate,
-    current_user: dict = Depends(require_admin),
-    store=Depends(get_app_store),
-) -> dict:
-    try:
-        return store.add_approval(document_id, {**payload.model_dump(), "actorId": current_user["id"]})
-    except NotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    service: UdmsService = Depends(get_udms_service),
+) -> list[ApprovalTemplate]:
+    templates = await service.list_approval_templates(current_user)
+    return [ApprovalTemplate.model_validate(template) for template in templates]

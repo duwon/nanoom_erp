@@ -5,6 +5,7 @@ from app.core.security import (
     get_current_user as resolve_current_user,
 )
 from app.core.store import InMemoryAppStore
+from app.modules.udms.service import UdmsService
 from app.services.oauth_service import OAuthService
 from app.services.worship_service import WorshipService
 
@@ -25,6 +26,16 @@ def get_worship_service(request: Request) -> WorshipService:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Service is not ready",
+        )
+    return service
+
+
+def get_udms_service(request: Request) -> UdmsService:
+    service = getattr(request.app.state, "udms_service", None)
+    if service is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="UDMS service is not ready",
         )
     return service
 

@@ -46,6 +46,86 @@ export type Board = {
   updatedAt: string;
 };
 
+export type DocumentStatus = "draft" | "published" | "superseded";
+export type SharePermission = "read" | "edit";
+export type ShareTargetType = "user" | "department";
+export type BoardPermissionAction = "read" | "create" | "manage";
+export type PermissionSubjectType = "role" | "department" | "user";
+
+export type ApprovalTemplate = {
+  id: string;
+  name: string;
+  description: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DocumentShare = {
+  id: string;
+  docId: string;
+  targetType: ShareTargetType;
+  targetId: string;
+  permission: SharePermission;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DocumentAttachment = {
+  id: string;
+  docId: string;
+  storageKey: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UdmsDocumentSummary = {
+  id: string;
+  originDocId: string;
+  prevDocId: string | null;
+  versionNumber: number;
+  boardId: string;
+  title: string;
+  content: string;
+  status: DocumentStatus;
+  approvalTemplateId: string | null;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UdmsDocumentDetail = UdmsDocumentSummary & {
+  attachments: DocumentAttachment[];
+  shares: DocumentShare[];
+};
+
+export type BoardPermissionRule = {
+  id: string;
+  boardId: string;
+  subjectType: PermissionSubjectType;
+  subjectId: string;
+  actions: BoardPermissionAction[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SharedDocumentSummary = {
+  share: DocumentShare;
+  document: UdmsDocumentSummary;
+  direction: "received" | "sent";
+};
+
+export type SharedDocumentOverview = {
+  received: SharedDocumentSummary[];
+  sent: SharedDocumentSummary[];
+};
+
 export type OrderItem = {
   id: string;
   title: string;
