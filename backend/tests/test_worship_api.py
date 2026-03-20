@@ -82,6 +82,39 @@ def test_worship_calendar_accepts_42_day_workspace_window() -> None:
     assert len(payload["days"]) == 42
 
 
+def test_worship_calendar_auto_materializes_only_next_10_days() -> None:
+    client = create_active_workspace_client()
+
+    payload = get_calendar_payload(client, anchor_date="2026-03-20", days=42)
+
+    assert next(day for day in payload["days"] if day["date"] == "2026-03-30")["services"]
+    assert next(day for day in payload["days"] if day["date"] == "2026-04-05")["services"] == []
+
+
+def test_editor_can_manually_create_worship_service_for_selected_date() -> None:
+    client = create_active_workspace_client()
+
+    before = get_calendar_payload(client, anchor_date="2026-04-05", days=3)
+    selected_day = next(day for day in before["days"] if day["date"] == "2026-04-05")
+    assert selected_day["services"] == []
+    assert any(template["serviceKind"] == "sunday1" for template in selected_day["availableTemplates"])
+
+    create_response = client.post(
+        "/api/v1/worship/services",
+        json={"targetDate": "2026-04-05", "templateId": "wtemplate-sunday1"},
+    )
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created["date"] == "2026-04-05"
+    assert created["serviceKind"] == "sunday1"
+
+    after = get_calendar_payload(client, anchor_date="2026-04-05", days=3)
+    created_service = find_service(after, target_date="2026-04-05", service_kind="sunday1")
+    assert created_service["id"] == created["id"]
+    updated_day = next(day for day in after["days"] if day["date"] == "2026-04-05")
+    assert all(template["serviceKind"] != "sunday1" for template in updated_day["availableTemplates"])
+
+
 def test_worship_service_update_detects_version_conflict() -> None:
     client = create_active_workspace_client()
     service = find_service(get_calendar_payload(client), target_date=SUNDAY_ANCHOR_DATE, service_kind="sunday1")
@@ -147,7 +180,7 @@ def test_guest_input_link_filters_values_and_updates_sections() -> None:
     service = find_service(get_calendar_payload(client), target_date=SUNDAY_ANCHOR_DATE, service_kind="sunday1")
 
     link_response = client.post(
-        f"/api/v1/worship/services/{service['id']}/tasks/task-praise/guest-link"
+        f"/api/v1/worship/services/{service['id']}/tasks/task-opening-song/guest-link"
     )
     assert link_response.status_code == 200
     link_payload = link_response.json()
@@ -160,6 +193,7 @@ def test_guest_input_link_filters_values_and_updates_sections() -> None:
     submit_response = client.put(
         f"/api/v1/worship/input/{link_payload['token']}",
         json={
+            "markComplete": True,
             "values": {
                 "songTitle": "은혜",
                 "lyrics": "Verse 1\n은혜가 넘칩니다\n\nChorus\n주님을 찬양합니다",
@@ -173,10 +207,11 @@ def test_guest_input_link_filters_values_and_updates_sections() -> None:
 
     updated = get_service_detail(client, service["id"])
     opening_song = next(section for section in updated["sections"] if section["id"] == "opening-song")
-    praise_task = next(task for task in updated["tasks"] if task["id"] == "task-praise")
+    praise_task = next(task for task in updated["tasks"] if task["id"] == "task-opening-song")
 
     assert opening_song["title"] == "은혜"
     assert opening_song["status"] == "review"
+    assert updated["status"] == "progress"
     assert len(opening_song["slides"]) == 2
     assert praise_task["status"] == "review"
 
@@ -186,13 +221,13 @@ def test_guest_input_rejects_expired_and_revoked_links() -> None:
     service = find_service(get_calendar_payload(client), target_date=SUNDAY_ANCHOR_DATE, service_kind="sunday1")
 
     expired_link = client.post(
-        f"/api/v1/worship/services/{service['id']}/tasks/task-praise/guest-link"
+        f"/api/v1/worship/services/{service['id']}/tasks/task-opening-song/guest-link"
     ).json()
     past_time = (datetime.now(client.app.state.service.timezone) - timedelta(minutes=5)).isoformat()
     update_task_guest_access(
         client,
         service["id"],
-        "task-praise",
+        "task-opening-song",
         expires_at=past_time,
     )
     expired_response = client.get(f"/api/v1/worship/input/{expired_link['token']}")
@@ -200,12 +235,12 @@ def test_guest_input_rejects_expired_and_revoked_links() -> None:
     assert "expired" in expired_response.json()["detail"]
 
     revoked_link = client.post(
-        f"/api/v1/worship/services/{service['id']}/tasks/task-praise/guest-link"
+        f"/api/v1/worship/services/{service['id']}/tasks/task-opening-song/guest-link"
     ).json()
     update_task_guest_access(
         client,
         service["id"],
-        "task-praise",
+        "task-opening-song",
         revoked_at=iso_now(),
     )
     revoked_response = client.get(f"/api/v1/worship/input/{revoked_link['token']}")
@@ -325,6 +360,47 @@ def test_master_can_list_create_and_update_worship_templates() -> None:
     assert update_response.status_code == 200
     assert update_response.json()["displayName"] == "수련회 집회"
     assert update_response.json()["isActive"] is True
+
+
+def test_deleting_template_does_not_remove_existing_service() -> None:
+    client = create_master_client()
+
+    create_response = client.post(
+        "/api/v1/admin/worship-templates",
+        json={
+            "serviceKind": "retreat-temp",
+            "displayName": "??湲? ?덈같",
+            "startTime": "16:00",
+            "generationRule": "daily",
+            "defaultSections": [],
+            "taskPresets": [],
+            "templatePresets": [],
+            "isActive": True,
+        },
+    )
+    assert create_response.status_code == 200
+    created = create_response.json()
+
+    materialize_response = client.post(
+        "/api/v1/worship/services",
+        json={"targetDate": "2026-03-25", "templateId": created["id"]},
+    )
+    assert materialize_response.status_code == 201
+    service = materialize_response.json()
+
+    delete_response = client.delete(f"/api/v1/admin/worship-templates/{created['id']}")
+    assert delete_response.status_code == 204
+
+    deleted_lookup = client.get("/api/v1/admin/worship-templates")
+    assert deleted_lookup.status_code == 200
+    assert all(item["id"] != created["id"] for item in deleted_lookup.json())
+
+    detail_response = client.get(f"/api/v1/worship/services/{service['id']}")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["templateId"] == created["id"]
+
+    missing_delete = client.delete(f"/api/v1/admin/worship-templates/{created['id']}")
+    assert missing_delete.status_code == 404
 
 
 def test_worship_order_target_requires_existing_parent() -> None:

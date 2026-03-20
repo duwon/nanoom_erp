@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 
 import { getWorshipGuestInput, submitWorshipGuestInput } from "@/lib/api";
 import type { WorshipGuestTaskView } from "@/lib/types";
@@ -15,6 +15,7 @@ export default function WorshipGuestInputPage({
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const snapshotRef = useRef("");
 
   useEffect(() => {
     let active = true;
@@ -26,11 +27,12 @@ export default function WorshipGuestInputPage({
         }
         setView(response);
         setValues(response.values);
+        snapshotRef.current = JSON.stringify(response.values);
       } catch (error) {
         if (!active) {
           return;
         }
-        setMessage(error instanceof Error ? error.message : "게스트 입력 정보를 불러오지 못했습니다.");
+        setMessage(error instanceof Error ? error.message : "입력 링크를 불러오지 못했습니다.");
       }
     }
     void load();
@@ -39,16 +41,33 @@ export default function WorshipGuestInputPage({
     };
   }, [token]);
 
+  useEffect(() => {
+    const nextSnapshot = JSON.stringify(values);
+    if (!view || !nextSnapshot || nextSnapshot === snapshotRef.current) {
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      setSaving(true);
+      try {
+        const response = await submitWorshipGuestInput(token, values, false);
+        setView(response);
+        snapshotRef.current = JSON.stringify(response.values);
+        setMessage("자동 저장됨");
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "자동 저장에 실패했습니다.");
+      } finally {
+        setSaving(false);
+      }
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [token, values, view]);
+
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-4 py-10">
-      <section className="panel-strong rounded-[32px] px-6 py-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.32em] text-emerald-700">
-          Worship Guest Input
-        </p>
-        <h1 className="mt-4 font-display text-4xl font-semibold tracking-tight text-slate-900">
-          {view?.role ?? "입력 링크"}
-        </h1>
-        <p className="mt-3 text-sm leading-7 text-slate-600">
+      <section className="panel-strong rounded-[28px] px-6 py-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-700">Worship Guest Input</p>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">{view?.role ?? "입력 링크"}</h1>
+        <p className="mt-2 text-sm leading-7 text-slate-600">
           {view?.serviceName ?? ""} / {view?.scope ?? ""}
         </p>
 
@@ -66,17 +85,13 @@ export default function WorshipGuestInputPage({
                 <textarea
                   rows={field.fieldType === "lyrics" ? 10 : 6}
                   value={String(values[field.key] ?? "")}
-                  onChange={(event) =>
-                    setValues((current) => ({ ...current, [field.key]: event.target.value }))
-                  }
+                  onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))}
                   className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400"
                 />
               ) : (
                 <input
                   value={String(values[field.key] ?? "")}
-                  onChange={(event) =>
-                    setValues((current) => ({ ...current, [field.key]: event.target.value }))
-                  }
+                  onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))}
                   className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400"
                 />
               )}
@@ -90,19 +105,20 @@ export default function WorshipGuestInputPage({
           onClick={async () => {
             setSaving(true);
             try {
-              const response = await submitWorshipGuestInput(token, values);
+              const response = await submitWorshipGuestInput(token, values, true);
               setView(response);
               setValues(response.values);
-              setMessage("입력을 제출했습니다.");
+              snapshotRef.current = JSON.stringify(response.values);
+              setMessage("입력 완료로 제출했습니다.");
             } catch (error) {
-              setMessage(error instanceof Error ? error.message : "제출에 실패했습니다.");
+              setMessage(error instanceof Error ? error.message : "완료 제출에 실패했습니다.");
             } finally {
               setSaving(false);
             }
           }}
           className="mt-6 w-full rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white"
         >
-          {saving ? "제출 중..." : "제출"}
+          {saving ? "저장 중..." : "입력 완료"}
         </button>
       </section>
     </main>

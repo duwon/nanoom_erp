@@ -42,6 +42,7 @@ class User(CamelModel):
     name: str | None = None
     position: str | None = None
     department: str | None = None
+    worship_roles: list[str] = Field(default_factory=list)
     approved_at: str | None = None
     approved_by: str | None = None
     last_login_at: str | None = None
@@ -66,6 +67,11 @@ class UserProfileUpdate(BaseModel):
 class AdminUserUpdate(BaseModel):
     role: UserRole | None = None
     status: UserStatus | None = None
+    worship_roles: list[str] | None = None
+
+
+class DevRoleSwitchPayload(BaseModel):
+    role: UserRole
 
 
 def is_profile_complete(user: dict | User) -> bool:

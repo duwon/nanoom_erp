@@ -45,3 +45,16 @@ async def update_worship_template(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ConflictError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.delete("/worship-templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_worship_template(
+    template_id: str,
+    current_user: dict = Depends(require_admin),
+    service: WorshipService = Depends(get_worship_service),
+) -> None:
+    del current_user
+    try:
+        await service.delete_template(template_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

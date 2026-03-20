@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { getWorshipCalendar, getWorshipService } from "@/lib/api";
+import { createWorshipService, getCurrentUser, getWorshipCalendar, getWorshipService } from "@/lib/api";
 import type {
+  AuthUser,
   WorshipCalendarDay,
   WorshipCalendarResponse,
   WorshipCalendarService,
+  WorshipCalendarTemplateOption,
   WorshipServiceDetail,
 } from "@/lib/types";
 
@@ -41,14 +43,15 @@ function findSelectedDay(days: WorshipCalendarDay[], anchorDate: string | null, 
   return days.find((day) => day.services.length > 0) ?? days[0] ?? null;
 }
 
+function toDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function normalizeCalendarAnchorDate(anchorDate: string | null) {
-  const today = anchorDate
-    ? (() => {
-        const [year, month, day] = anchorDate.split("-").map(Number);
-        return new Date(year, month - 1, day);
-      })()
-    : new Date();
-  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-16`;
+  return anchorDate || toDateKey(new Date());
 }
 
 export function useWorshipContext(days = 42) {
@@ -56,12 +59,14 @@ export function useWorshipContext(days = 42) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [calendar, setCalendar] = useState<WorshipCalendarResponse | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [service, setService] = useState<WorshipServiceDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState("");
 
   const anchorDate = searchParams.get("anchorDate");
   const serviceId = searchParams.get("serviceId");
+  const requestedAnchorDate = normalizeCalendarAnchorDate(anchorDate);
 
   useEffect(() => {
     let active = true;
@@ -70,8 +75,13 @@ export function useWorshipContext(days = 42) {
       setIsLoading(true);
       setMessage("");
       try {
+        const user = await getCurrentUser();
+        if (!active) {
+          return;
+        }
+        setCurrentUser(user);
         const nextCalendar = await getWorshipCalendar({
-          anchorDate: normalizeCalendarAnchorDate(anchorDate),
+          anchorDate: requestedAnchorDate,
           days,
         });
         if (!active) {
@@ -79,7 +89,11 @@ export function useWorshipContext(days = 42) {
         }
         setCalendar(nextCalendar);
 
-        const selectedDay = findSelectedDay(nextCalendar.days, anchorDate, serviceId);
+        const selectedDay = findSelectedDay(
+          nextCalendar.days,
+          anchorDate ?? (serviceId ? null : requestedAnchorDate),
+          serviceId,
+        );
         const serviceOptions = nextCalendar.days.flatMap((day) => day.services);
         const hasRequestedService = serviceId
           ? serviceOptions.some((candidate) => candidate.id === serviceId)
@@ -88,12 +102,11 @@ export function useWorshipContext(days = 42) {
           (serviceId && hasRequestedService ? serviceId : null) ??
           selectedDay?.services[0]?.id ??
           null;
-        const resolvedAnchorDate = selectedDay?.date ?? nextCalendar.anchorDate;
+        const resolvedAnchorDate =
+          anchorDate ??
+          (serviceId ? selectedDay?.date ?? requestedAnchorDate : requestedAnchorDate);
 
-        if (
-          resolvedAnchorDate !== anchorDate ||
-          (resolvedServiceId !== serviceId && resolvedServiceId !== null)
-        ) {
+        if (resolvedAnchorDate !== anchorDate || resolvedServiceId !== serviceId) {
           const query = buildQueryString(searchParams, {
             anchorDate: resolvedAnchorDate,
             serviceId: resolvedServiceId,
@@ -116,6 +129,7 @@ export function useWorshipContext(days = 42) {
           return;
         }
         setMessage(error instanceof Error ? error.message : "예배 데이터를 불러오지 못했습니다.");
+        setCurrentUser(null);
         setService(null);
       } finally {
         if (active) {
@@ -129,7 +143,7 @@ export function useWorshipContext(days = 42) {
     return () => {
       active = false;
     };
-  }, [anchorDate, days, pathname, router, searchParams, serviceId]);
+  }, [anchorDate, days, pathname, requestedAnchorDate, router, searchParams, serviceId]);
 
   const serviceMap = useMemo(() => {
     const map = new Map<string, WorshipCalendarService>();
@@ -141,12 +155,18 @@ export function useWorshipContext(days = 42) {
     return map;
   }, [calendar]);
 
+  const effectiveAnchorDate = anchorDate ?? (serviceId ? null : calendar?.anchorDate ?? null);
   const selectedDay = useMemo(
-    () => findSelectedDay(calendar?.days ?? [], anchorDate, serviceId),
-    [anchorDate, calendar, serviceId],
+    () => findSelectedDay(calendar?.days ?? [], effectiveAnchorDate, serviceId),
+    [calendar, effectiveAnchorDate, serviceId],
   );
   const selectedDayServices = selectedDay?.services ?? [];
+  const selectedDayAvailableTemplates = selectedDay?.availableTemplates ?? [];
   const selectedServiceSummary = service ? serviceMap.get(service.id) ?? null : null;
+  const resolvedContextAnchorDate =
+    anchorDate ??
+    effectiveAnchorDate ??
+    (serviceId ? selectedDay?.date ?? calendar?.anchorDate ?? null : calendar?.anchorDate ?? null);
 
   function setAnchorDate(nextAnchorDate: string) {
     const nextDay = calendar?.days.find((day) => day.date === nextAnchorDate) ?? null;
@@ -178,20 +198,40 @@ export function useWorshipContext(days = 42) {
     setService(nextService);
   }
 
+  async function createServiceForDate(template: WorshipCalendarTemplateOption, targetDate?: string) {
+    const resolvedTargetDate = targetDate ?? selectedDay?.date ?? anchorDate ?? calendar?.anchorDate;
+    if (!resolvedTargetDate) {
+      throw new Error("예배를 추가할 날짜를 먼저 선택해 주세요.");
+    }
+    const created = await createWorshipService({
+      targetDate: resolvedTargetDate,
+      templateId: template.templateId,
+    });
+    const query = buildQueryString(searchParams, {
+      anchorDate: created.date,
+      serviceId: created.id,
+    });
+    router.replace(`${pathname}?${query}`, { scroll: false });
+    return created;
+  }
+
   return {
     calendar,
+    currentUser,
     service,
     selectedServiceSummary,
     selectedDay,
     selectedDayServices,
+    selectedDayAvailableTemplates,
     isLoading,
     message,
-    anchorDate: anchorDate ?? calendar?.anchorDate ?? null,
+    anchorDate: resolvedContextAnchorDate,
     serviceId: service?.id ?? serviceId,
     setAnchorDate,
     setServiceId,
     setService,
     refreshService,
+    createServiceForDate,
   };
 }
 

@@ -34,6 +34,8 @@ class UserRepository(Protocol):
 
     async def list_users(self) -> list[dict]: ...
 
+    async def list_active_users(self) -> list[dict]: ...
+
     async def login_with_oauth(self, identity: OAuthIdentity) -> dict: ...
 
     async def update_profile(self, user_id: str, payload: dict) -> dict: ...
@@ -86,6 +88,7 @@ class MongoUserRepository:
                 "name": name,
                 "position": "관리자",
                 "department": "시스템",
+                "worship_roles": ["미디어팀", "인도자"],
                 "approved_at": now,
                 "approved_by": None,
                 "last_login_at": now,
@@ -105,6 +108,7 @@ class MongoUserRepository:
                     "name": existing.get("name") or name,
                     "position": existing.get("position") or "관리자",
                     "department": existing.get("department") or "시스템",
+                    "worship_roles": existing.get("worship_roles") or ["미디어팀", "인도자"],
                     "approved_at": existing.get("approved_at") or now,
                     "updated_at": now,
                 }
@@ -123,6 +127,10 @@ class MongoUserRepository:
     async def list_users(self) -> list[dict]:
         users = await self.collection.find({}, {"_id": False}).to_list(None)
         return sorted(users, key=lambda row: (_status_rank(row["status"]), row["created_at"]))
+
+    async def list_active_users(self) -> list[dict]:
+        users = await self.collection.find({"status": UserStatus.active.value}, {"_id": False}).to_list(None)
+        return sorted(users, key=lambda row: (row.get("name") or row["email"]).lower())
 
     async def login_with_oauth(self, identity: OAuthIdentity) -> dict:
         now = iso_now()
@@ -145,6 +153,7 @@ class MongoUserRepository:
                 "name": identity.name,
                 "position": None,
                 "department": None,
+                "worship_roles": [],
                 "approved_at": None,
                 "approved_by": None,
                 "last_login_at": now,
@@ -200,6 +209,8 @@ class MongoUserRepository:
             elif payload["status"] == UserStatus.pending.value:
                 updates["approved_at"] = None
                 updates["approved_by"] = None
+        if "worship_roles" in payload and payload["worship_roles"] is not None:
+            updates["worship_roles"] = list(payload["worship_roles"])
 
         updated = await self.collection.find_one_and_update(
             {"id": existing["id"]},
@@ -226,6 +237,7 @@ class InMemoryUserRepository:
                 "name": "개발 관리자",
                 "position": "관리자",
                 "department": "시스템",
+                "worship_roles": ["미디어팀", "인도자"],
                 "approved_at": now,
                 "approved_by": None,
                 "last_login_at": now,
@@ -242,6 +254,7 @@ class InMemoryUserRepository:
                 "name": "문서 편집자",
                 "position": "전도사",
                 "department": "예배팀",
+                "worship_roles": ["찬양팀", "말씀 담당"],
                 "approved_at": now,
                 "approved_by": "user-master",
                 "last_login_at": now,
@@ -277,6 +290,7 @@ class InMemoryUserRepository:
                         "name": user.get("name") or name,
                         "position": user.get("position") or "관리자",
                         "department": user.get("department") or "시스템",
+                        "worship_roles": user.get("worship_roles") or ["미디어팀", "인도자"],
                         "updated_at": iso_now(),
                     }
                 )
@@ -295,6 +309,7 @@ class InMemoryUserRepository:
             "name": name,
             "position": "관리자",
             "department": "시스템",
+            "worship_roles": ["미디어팀", "인도자"],
             "approved_at": now,
             "approved_by": None,
             "last_login_at": now,
@@ -313,6 +328,10 @@ class InMemoryUserRepository:
     async def list_users(self) -> list[dict]:
         users = [deepcopy(user) for user in self.users.values()]
         return sorted(users, key=lambda row: (_status_rank(row["status"]), row["created_at"]))
+
+    async def list_active_users(self) -> list[dict]:
+        users = [deepcopy(user) for user in self.users.values() if user["status"] == UserStatus.active.value]
+        return sorted(users, key=lambda row: (row.get("name") or row["email"]).lower())
 
     async def login_with_oauth(self, identity: OAuthIdentity) -> dict:
         now = iso_now()
@@ -339,6 +358,7 @@ class InMemoryUserRepository:
             "name": identity.name,
             "position": None,
             "department": None,
+            "worship_roles": [],
             "approved_at": None,
             "approved_by": None,
             "last_login_at": now,
@@ -376,5 +396,7 @@ class InMemoryUserRepository:
             elif payload["status"] == UserStatus.pending.value:
                 user["approved_at"] = None
                 user["approved_by"] = None
+        if "worship_roles" in payload and payload["worship_roles"] is not None:
+            user["worship_roles"] = list(payload["worship_roles"])
         user["updated_at"] = iso_now()
         return deepcopy(user)

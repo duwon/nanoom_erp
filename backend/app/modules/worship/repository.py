@@ -112,6 +112,8 @@ class WorshipRepository(Protocol):
 
     async def update_template(self, template_id: str, payload: dict[str, Any]) -> dict[str, Any]: ...
 
+    async def delete_template(self, template_id: str) -> None: ...
+
     async def list_services_between(self, start_date: str, end_date: str) -> list[dict[str, Any]]: ...
 
     async def list_services(self) -> list[dict[str, Any]]: ...
@@ -463,6 +465,11 @@ class MongoWorshipRepository:
             raise NotFoundError(f"Worship template '{template_id}' was not found.")
         return updated
 
+    async def delete_template(self, template_id: str) -> None:
+        deleted = await self.templates.find_one_and_delete({"id": template_id}, {"_id": False})
+        if deleted is None:
+            raise NotFoundError(f"Worship template '{template_id}' was not found.")
+
     async def list_services_between(self, start_date: str, end_date: str) -> list[dict[str, Any]]:
         rows = (
             await self.services.find({"date": {"$gte": start_date, "$lte": end_date}}, {"_id": False})
@@ -581,6 +588,11 @@ class InMemoryWorshipRepository:
                 raise ConflictError(f"Service kind '{payload['service_kind']}' already exists.")
         current.update({**payload, "updated_at": iso_now()})
         return _clone(current)
+
+    async def delete_template(self, template_id: str) -> None:
+        if template_id not in self.templates:
+            raise NotFoundError(f"Worship template '{template_id}' was not found.")
+        del self.templates[template_id]
 
     async def list_services_between(self, start_date: str, end_date: str) -> list[dict[str, Any]]:
         rows = [

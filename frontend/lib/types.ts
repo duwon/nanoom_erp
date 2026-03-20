@@ -13,6 +13,7 @@ export type AuthUser = {
   name: string | null;
   position: string | null;
   department: string | null;
+  worshipRoles: string[];
   approvedAt: string | null;
   approvedBy: string | null;
   lastLoginAt: string | null;
@@ -29,6 +30,7 @@ export type UserProfileUpdate = {
 export type AdminUserUpdate = {
   role?: UserRole;
   status?: UserStatus;
+  worshipRoles?: string[];
 };
 
 export type LookupEntry = {
@@ -81,6 +83,14 @@ export type WorshipSlide = {
   notes: string;
 };
 
+export type WorshipSectionCapabilities = {
+  canEdit: boolean;
+  canAssign: boolean;
+  canShare: boolean;
+  canAddSiblingSong: boolean;
+  canRemove: boolean;
+};
+
 export type WorshipSection = {
   id: string;
   order: number;
@@ -96,6 +106,7 @@ export type WorshipSection = {
   notes: string;
   content: Record<string, unknown>;
   slides: WorshipSlide[];
+  capabilities: WorshipSectionCapabilities;
   updatedAt: string;
 };
 
@@ -117,15 +128,16 @@ export type WorshipGuestAccess = {
 
 export type WorshipTask = {
   id: string;
+  sectionId: string;
   role: string;
   scope: string;
-  sectionIds: string[];
   requiredFields: WorshipTaskFieldSpec[];
   status: WorshipStatus;
   dueAt: string | null;
   tips: string;
   guestAccess: WorshipGuestAccess;
   lastSubmittedAt: string | null;
+  values?: Record<string, unknown>;
 };
 
 export type WorshipReviewSummary = {
@@ -191,11 +203,19 @@ export type WorshipCalendarService = {
   reviewSummary: WorshipReviewSummary;
 };
 
+export type WorshipCalendarTemplateOption = {
+  templateId: string;
+  serviceKind: string;
+  displayName: string;
+  startTime: string;
+};
+
 export type WorshipCalendarDay = {
   date: string;
   dateLabel: string;
   weekdayLabel: string;
   services: WorshipCalendarService[];
+  availableTemplates: WorshipCalendarTemplateOption[];
 };
 
 export type WorshipCalendarResponse = {
@@ -234,6 +254,8 @@ export type WorshipGuestLinkResponse = {
 };
 
 export type WorshipGuestTaskView = {
+  taskId: string;
+  sectionId: string;
   serviceId: string;
   serviceName: string;
   date: string;
@@ -244,6 +266,14 @@ export type WorshipGuestTaskView = {
   status: WorshipStatus;
   requiredFields: WorshipTaskFieldSpec[];
   values: Record<string, unknown>;
+};
+
+export type ActiveUserSummary = {
+  id: string;
+  name: string | null;
+  department: string | null;
+  position: string | null;
+  worshipRoles: string[];
 };
 
 export type WorshipSongLookupItem = {

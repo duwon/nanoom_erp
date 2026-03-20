@@ -25,7 +25,7 @@ function formatSocialProvider(value: AuthUser["socialProvider"]) {
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AuthUser[]>([]);
-  const [drafts, setDrafts] = useState<Record<string, { role: UserRole; status: UserStatus }>>({});
+  const [drafts, setDrafts] = useState<Record<string, { role: UserRole; status: UserStatus; worshipRoles: string }>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
@@ -39,7 +39,10 @@ export default function AdminUsersPage() {
         setUsers(response);
         setDrafts(
           Object.fromEntries(
-            response.map((user) => [user.id, { role: user.role, status: user.status }]),
+            response.map((user) => [
+              user.id,
+              { role: user.role, status: user.status, worshipRoles: (user.worshipRoles ?? []).join(", ") },
+            ]),
           ),
         );
       } catch (error) {
@@ -57,11 +60,11 @@ export default function AdminUsersPage() {
     [users],
   );
 
-  function updateDraft(userId: string, patch: Partial<{ role: UserRole; status: UserStatus }>) {
+  function updateDraft(userId: string, patch: Partial<{ role: UserRole; status: UserStatus; worshipRoles: string }>) {
     setDrafts((current) => ({
       ...current,
       [userId]: {
-        ...(current[userId] ?? { role: "member", status: "pending" }),
+        ...(current[userId] ?? { role: "member", status: "pending", worshipRoles: "" }),
         ...patch,
       },
     }));
@@ -76,11 +79,22 @@ export default function AdminUsersPage() {
     setSavingUserId(userId);
     setMessage("");
     try {
-      const updated = await updateAdminUser(userId, draft);
+      const updated = await updateAdminUser(userId, {
+        role: draft.role,
+        status: draft.status,
+        worshipRoles: draft.worshipRoles
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean),
+      });
       setUsers((current) => current.map((user) => (user.id === userId ? updated : user)));
       setDrafts((current) => ({
         ...current,
-        [userId]: { role: updated.role, status: updated.status },
+        [userId]: {
+          role: updated.role,
+          status: updated.status,
+          worshipRoles: (updated.worshipRoles ?? []).join(", "),
+        },
       }));
       setMessage("사용자 상태를 저장했습니다.");
     } catch (error) {
@@ -115,7 +129,11 @@ export default function AdminUsersPage() {
       ) : null}
 
       {users.map((user) => {
-        const draft = drafts[user.id] ?? { role: user.role, status: user.status };
+        const draft = drafts[user.id] ?? {
+          role: user.role,
+          status: user.status,
+          worshipRoles: (user.worshipRoles ?? []).join(", "),
+        };
 
         return (
           <section key={user.id} className="panel rounded-[28px] p-5">
@@ -168,6 +186,16 @@ export default function AdminUsersPage() {
                     </option>
                   ))}
                 </select>
+              </label>
+
+              <label className="grid gap-2 sm:col-span-2">
+                <span className="text-sm font-medium text-slate-700">Worship Roles</span>
+                <input
+                  value={draft.worshipRoles}
+                  onChange={(event) => updateDraft(user.id, { worshipRoles: event.target.value })}
+                  placeholder="찬양팀, 특송팀, 말씀 담당"
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-amber-400"
+                />
               </label>
             </div>
 

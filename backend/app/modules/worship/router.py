@@ -16,8 +16,10 @@ from app.modules.worship.schemas import (
     WorshipPresentationState,
     WorshipReviewResponse,
     WorshipScriptureLookupResponse,
+    WorshipSectionCreate,
     WorshipSectionReorderRequest,
     WorshipSectionUpdate,
+    WorshipServiceCreate,
     WorshipServiceDetail,
     WorshipServiceUpdate,
     WorshipSongLookupItem,
@@ -55,9 +57,20 @@ async def get_service(
     current_user: dict = Depends(get_current_user),
     service: WorshipService = Depends(get_worship_service),
 ) -> WorshipServiceDetail:
-    del current_user
     try:
-        return await service.get_service(service_id)
+        return await service.get_service(current_user, service_id)
+    except Exception as error:
+        _raise_http_error(error)
+
+
+@router.post("/services", response_model=WorshipServiceDetail, status_code=status.HTTP_201_CREATED)
+async def create_service(
+    payload: WorshipServiceCreate,
+    current_user: dict = Depends(get_current_user),
+    service: WorshipService = Depends(get_worship_service),
+) -> WorshipServiceDetail:
+    try:
+        return await service.create_service(current_user, payload)
     except Exception as error:
         _raise_http_error(error)
 
@@ -98,6 +111,33 @@ async def reorder_sections(
 ) -> WorshipServiceDetail:
     try:
         return await service.reorder_sections(current_user, service_id, payload.model_dump())
+    except Exception as error:
+        _raise_http_error(error)
+
+
+@router.post("/services/{service_id}/sections", response_model=WorshipServiceDetail)
+async def add_section(
+    service_id: str,
+    payload: WorshipSectionCreate,
+    current_user: dict = Depends(get_current_user),
+    service: WorshipService = Depends(get_worship_service),
+) -> WorshipServiceDetail:
+    try:
+        return await service.add_section(current_user, service_id, payload.model_dump(exclude_none=True))
+    except Exception as error:
+        _raise_http_error(error)
+
+
+@router.delete("/services/{service_id}/sections/{section_id}", response_model=WorshipServiceDetail)
+async def delete_section(
+    service_id: str,
+    section_id: str,
+    version: int = Query(..., ge=1),
+    current_user: dict = Depends(get_current_user),
+    service: WorshipService = Depends(get_worship_service),
+) -> WorshipServiceDetail:
+    try:
+        return await service.delete_section(current_user, service_id, section_id, version)
     except Exception as error:
         _raise_http_error(error)
 

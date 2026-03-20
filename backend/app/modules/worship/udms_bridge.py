@@ -66,9 +66,9 @@ class WorshipUdmsBridge:
             defs.append(
                 {
                     "id": task["id"],
+                    "section_id": task.get("section_id"),
                     "role": task["role"],
                     "scope": task.get("scope", ""),
-                    "section_ids": list(task.get("section_ids", [])),
                     "required_fields": deepcopy(task.get("required_fields", [])),
                     "status": task.get("status", ""),
                     "due_at": task.get("due_at"),

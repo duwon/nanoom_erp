@@ -50,6 +50,14 @@ class WorshipSlide(CamelModel):
     notes: str = ""
 
 
+class WorshipSectionCapabilities(CamelModel):
+    can_edit: bool = False
+    can_assign: bool = False
+    can_share: bool = False
+    can_add_sibling_song: bool = False
+    can_remove: bool = False
+
+
 class WorshipSection(CamelModel):
     id: str
     order: int = Field(ge=1)
@@ -65,6 +73,7 @@ class WorshipSection(CamelModel):
     notes: str = ""
     content: dict[str, Any] = Field(default_factory=dict)
     slides: list[WorshipSlide] = Field(default_factory=list)
+    capabilities: WorshipSectionCapabilities = Field(default_factory=WorshipSectionCapabilities)
     updated_at: str
 
     @field_validator("title", "detail", "role", "template_key", "notes", mode="before")
@@ -98,9 +107,9 @@ class WorshipGuestAccess(CamelModel):
 
 class WorshipTask(CamelModel):
     id: str
+    section_id: str
     role: str = Field(min_length=1)
     scope: str = ""
-    section_ids: list[str] = Field(default_factory=list)
     required_fields: list[WorshipTaskFieldSpec] = Field(default_factory=list)
     status: WorshipServiceStatus = WorshipServiceStatus.waiting
     due_at: str | None = None
@@ -216,11 +225,19 @@ class WorshipCalendarService(CamelModel):
     review_summary: WorshipReviewSummary
 
 
+class WorshipCalendarTemplateOption(CamelModel):
+    template_id: str
+    service_kind: str
+    display_name: str
+    start_time: str
+
+
 class WorshipCalendarDay(CamelModel):
     date: str
     date_label: str
     weekday_label: str
     services: list[WorshipCalendarService] = Field(default_factory=list)
+    available_templates: list[WorshipCalendarTemplateOption] = Field(default_factory=list)
 
 
 class WorshipCalendarResponse(CamelModel):
@@ -265,6 +282,19 @@ class WorshipServiceUpdate(CamelModel):
         return value.strip()
 
 
+class WorshipServiceCreate(CamelModel):
+    target_date: str = Field(min_length=10, max_length=10)
+    template_id: str = Field(min_length=1)
+
+    @field_validator("target_date", "template_id")
+    @classmethod
+    def normalize_required_text(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("value must not be blank")
+        return trimmed
+
+
 class WorshipSectionUpdate(CamelModel):
     version: int = Field(ge=1)
     title: str | None = None
@@ -278,6 +308,8 @@ class WorshipSectionUpdate(CamelModel):
     notes: str | None = None
     content: dict[str, Any] | None = None
     slides: list[WorshipSlide] | None = None
+    editor_values: dict[str, Any] | None = None
+    mark_complete: bool | None = None
 
     @field_validator("title", "detail", "role", "assignee_id", "assignee_name", "template_key", "notes")
     @classmethod
@@ -303,6 +335,20 @@ class WorshipSectionReorderRequest(CamelModel):
     sections: list[WorshipSectionReorderEntry] = Field(default_factory=list)
 
 
+class WorshipSectionCreate(CamelModel):
+    version: int = Field(ge=1)
+    after_section_id: str | None = None
+    section_type: WorshipSectionType
+
+    @field_validator("after_section_id")
+    @classmethod
+    def normalize_after_section_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        return trimmed or None
+
+
 class WorshipGuestLinkResponse(CamelModel):
     task_id: str
     token: str
@@ -311,6 +357,8 @@ class WorshipGuestLinkResponse(CamelModel):
 
 
 class WorshipGuestTaskView(CamelModel):
+    task_id: str
+    section_id: str
     service_id: str
     service_name: str
     date: str
@@ -325,6 +373,7 @@ class WorshipGuestTaskView(CamelModel):
 
 class WorshipGuestInputPayload(CamelModel):
     values: dict[str, Any] = Field(default_factory=dict)
+    mark_complete: bool = False
 
 
 class WorshipSongLookupItem(CamelModel):

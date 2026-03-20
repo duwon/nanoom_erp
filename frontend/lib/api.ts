@@ -1,4 +1,5 @@
 import type {
+  ActiveUserSummary,
   AdminUserUpdate,
   ApprovalTemplate,
   AuthUser,
@@ -111,10 +112,25 @@ export async function getCurrentUser(): Promise<AuthUser> {
   return handleResponse<AuthUser>(response);
 }
 
+export async function listActiveUsers(): Promise<ActiveUserSummary[]> {
+  const response = await fetch(`${getApiV1BaseUrl()}/users/active`, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  return handleResponse<ActiveUserSummary[]>(response);
+}
+
 export async function updateMyProfile(payload: UserProfileUpdate): Promise<AuthUser> {
   return requestJson<AuthUser>(`${getApiV1BaseUrl()}/users/me/profile`, {
     method: "PUT",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function switchMyDevRole(role: "master" | "editor"): Promise<AuthUser> {
+  return requestJson<AuthUser>(`${getApiV1BaseUrl()}/users/me/dev-role`, {
+    method: "PUT",
+    body: JSON.stringify({ role }),
   });
 }
 
@@ -406,6 +422,16 @@ export async function getWorshipService(serviceId: string) {
   return handleResponse<WorshipServiceDetail>(response);
 }
 
+export async function createWorshipService(payload: {
+  targetDate: string;
+  templateId: string;
+}): Promise<WorshipServiceDetail> {
+  return requestJson<WorshipServiceDetail>(`${getApiV1BaseUrl()}/worship/services`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function updateWorshipService(
   serviceId: string,
   payload: { version: number; summary?: string; serviceName?: string; startAt?: string },
@@ -432,12 +458,39 @@ export async function updateWorshipSection(
     notes?: string;
     content?: Record<string, unknown>;
     slides?: WorshipSection["slides"];
+    editorValues?: Record<string, unknown>;
+    markComplete?: boolean;
   },
 ): Promise<WorshipServiceDetail> {
   return requestJson<WorshipServiceDetail>(`${getApiV1BaseUrl()}/worship/services/${serviceId}/sections/${sectionId}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });
+}
+
+export async function addWorshipSection(
+  serviceId: string,
+  payload: { version: number; afterSectionId: string; sectionType: WorshipSection["sectionType"] },
+): Promise<WorshipServiceDetail> {
+  return requestJson<WorshipServiceDetail>(`${getApiV1BaseUrl()}/worship/services/${serviceId}/sections`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteWorshipSection(
+  serviceId: string,
+  sectionId: string,
+  version: number,
+): Promise<WorshipServiceDetail> {
+  const response = await fetch(
+    `${getApiV1BaseUrl()}/worship/services/${serviceId}/sections/${sectionId}?version=${version}`,
+    {
+      method: "DELETE",
+      credentials: "include",
+    },
+  );
+  return handleResponse<WorshipServiceDetail>(response);
 }
 
 export async function reorderWorshipSections(
@@ -473,10 +526,11 @@ export async function getWorshipGuestInput(token: string): Promise<WorshipGuestT
 export async function submitWorshipGuestInput(
   token: string,
   values: Record<string, unknown>,
+  markComplete = false,
 ): Promise<WorshipGuestTaskView> {
   return requestJson<WorshipGuestTaskView>(`${getApiV1BaseUrl()}/worship/input/${token}`, {
     method: "PUT",
-    body: JSON.stringify({ values }),
+    body: JSON.stringify({ values, markComplete }),
   });
 }
 
@@ -592,6 +646,16 @@ export async function updateWorshipTemplate(
     method: "PUT",
     body: JSON.stringify(payload),
   });
+}
+
+export async function deleteWorshipTemplate(templateId: string): Promise<void> {
+  const response = await fetch(`${getApiV1BaseUrl()}/admin/worship-templates/${templateId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
 }
 
 export async function getOrderItems(): Promise<OrderItem[]> {
