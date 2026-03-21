@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import hashlib
 import re
@@ -15,6 +15,9 @@ from app.modules.worship.repository import WorshipRepository, template_applies
 from app.modules.worship.schemas import (
     WorshipCalendarTemplateOption,
     WorshipCalendarResponse,
+    WorshipFieldType,
+    WorshipInputTemplate,
+    WorshipInputTemplateUpsert,
     WorshipGuestInputPayload,
     WorshipGuestLinkResponse,
     WorshipGuestTaskView,
@@ -23,8 +26,12 @@ from app.modules.worship.schemas import (
     WorshipPresentationState,
     WorshipReviewResponse,
     WorshipSectionCapabilities,
+    WorshipSectionTypeDefinition,
+    WorshipSectionTypeDefinitionUpsert,
     WorshipScriptureLookupResponse,
     WorshipSection,
+    WorshipSlideTemplate,
+    WorshipSlideTemplateUpsert,
     WorshipServiceCreate,
     WorshipServiceDetail,
     WorshipServiceStatus,
@@ -32,16 +39,15 @@ from app.modules.worship.schemas import (
     WorshipSongLookupItem,
     WorshipTemplate,
     WorshipTemplateUpsert,
+    WorshipWorkspaceBucket,
 )
 from app.modules.worship.udms_bridge import WorshipUdmsBridge
 from app.schemas.display import DisplayState
 from app.schemas.order_item import OrderItem, OrderItemUpdate
 from app.ws.connection_manager import ConnectionManager
 
-WEEKDAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"]
+WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 EDIT_ROLES = {"master", "editor", "final_approver"}
-EDITABLE_SECTION_TYPES = {"song", "special_song", "scripture", "message", "notice", "media"}
-MUSIC_SECTION_TYPES = {"song", "special_song"}
 AUTO_MATERIALIZE_FUTURE_DAYS = 10
 
 
@@ -113,10 +119,16 @@ class WorshipService:
     def _is_manage_role(self, user: dict[str, Any]) -> bool:
         return user.get("role") in EDIT_ROLES
 
+    def _is_editable_section(self, section: dict[str, Any]) -> bool:
+        return bool(section.get("input_template_id"))
+
+    def _is_music_section(self, section: dict[str, Any]) -> bool:
+        return section.get("workspace_bucket") == WorshipWorkspaceBucket.music.value
+
     def _can_edit_section(self, user: dict[str, Any], section: dict[str, Any]) -> bool:
         if self._is_manage_role(user):
             return True
-        if section.get("section_type") not in EDITABLE_SECTION_TYPES:
+        if not self._is_editable_section(section):
             return False
         if section.get("assignee_id") == user.get("id"):
             return True
@@ -131,40 +143,20 @@ class WorshipService:
         elif action == "share":
             allowed = self._can_edit_section(user, section)
         elif action == "remove":
-            allowed = self._can_edit_section(user, section) and section.get("section_type") in MUSIC_SECTION_TYPES
+            allowed = self._can_edit_section(user, section) and self._is_music_section(section)
         elif action == "add_song":
-            allowed = self._can_edit_section(user, section) and section.get("section_type") in MUSIC_SECTION_TYPES
+            allowed = self._can_edit_section(user, section) and self._is_music_section(section)
         if not allowed:
             raise ConflictError("You do not have permission for this worship section.")
 
-    def _default_required_fields(self, section: dict[str, Any]) -> list[dict[str, Any]]:
-        section_type = section.get("section_type")
-        if section_type in MUSIC_SECTION_TYPES:
-            return [
-                {"key": "songTitle", "label": "곡 제목", "field_type": "song_search", "required": True, "help_text": ""},
-                {"key": "lyrics", "label": "가사", "field_type": "lyrics", "required": True, "help_text": ""},
-                {"key": "templateKey", "label": "템플릿", "field_type": "template", "required": False, "help_text": ""},
-            ]
-        if section_type == "scripture":
-            return [
-                {"key": "reference", "label": "본문", "field_type": "scripture", "required": True, "help_text": ""},
-                {"key": "templateKey", "label": "템플릿", "field_type": "template", "required": False, "help_text": ""},
-            ]
-        if section_type == "message":
-            return [
-                {"key": "notes", "label": "말씀 메모", "field_type": "textarea", "required": False, "help_text": ""},
-                {"key": "templateKey", "label": "템플릿", "field_type": "template", "required": False, "help_text": ""},
-            ]
-        if section_type in {"notice", "media"}:
-            return [
-                {"key": "title", "label": "제목", "field_type": "text", "required": True, "help_text": ""},
-                {"key": "body", "label": "내용", "field_type": "textarea", "required": False, "help_text": ""},
-                {"key": "templateKey", "label": "템플릿", "field_type": "template", "required": False, "help_text": ""},
-            ]
-        return []
+    def _required_fields(self, task: dict[str, Any]) -> list[dict[str, Any]]:
+        return [deepcopy(field) for field in task.get("required_fields", [])]
+
+    def _field_map(self, task: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        return {field["key"]: field for field in self._required_fields(task)}
 
     def _task_scope(self, section: dict[str, Any]) -> str:
-        return section.get("title") or section.get("detail") or section.get("section_type", "")
+        return section.get("title") or section.get("detail") or section.get("section_type_code", "")
 
     def _normalize_task(self, service: dict[str, Any], section: dict[str, Any], task: dict[str, Any] | None = None) -> dict[str, Any]:
         task = deepcopy(task or {})
@@ -173,9 +165,10 @@ class WorshipService:
         return {
             "id": task.get("id") or f"task-{section['id']}",
             "section_id": section["id"],
+            "input_template_id": task.get("input_template_id") or section.get("input_template_id", ""),
             "role": task.get("role") or section.get("role", ""),
             "scope": task.get("scope") or self._task_scope(section),
-            "required_fields": task.get("required_fields") or self._default_required_fields(section),
+            "required_fields": deepcopy(task.get("required_fields") or []),
             "status": task.get("status") or section.get("status", WorshipServiceStatus.waiting.value),
             "due_at": task.get("due_at"),
             "tips": task.get("tips", ""),
@@ -194,29 +187,13 @@ class WorshipService:
         section_map = {section["id"]: section for section in service.get("sections", [])}
         normalized: dict[str, dict[str, Any]] = {}
         for task in service.get("tasks", []):
-            section_ids = []
-            if task.get("section_id"):
-                section_ids = [task["section_id"]]
-            elif task.get("section_ids"):
-                section_ids = [section_id for section_id in task.get("section_ids", []) if section_id in section_map]
-            if len(section_ids) > 1 and task.get("guest_access", {}).get("token_hash"):
-                task = deepcopy(task)
-                task["guest_access"] = {
-                    "token_hash": None,
-                    "issued_at": None,
-                    "expires_at": None,
-                    "revoked_at": iso_now(),
-                    "last_opened_at": None,
-                }
-            for section_id in section_ids:
-                section = section_map.get(section_id)
-                if section is None or section.get("section_type") not in EDITABLE_SECTION_TYPES:
-                    continue
-                next_task = deepcopy(task)
-                next_task["section_id"] = section_id
-                normalized[section_id] = self._normalize_task(service, section, next_task)
+            section_id = task.get("section_id")
+            section = section_map.get(section_id)
+            if section is None or not self._is_editable_section(section):
+                continue
+            normalized[section_id] = self._normalize_task(service, section, task)
         for section in service.get("sections", []):
-            if section.get("section_type") not in EDITABLE_SECTION_TYPES:
+            if not self._is_editable_section(section):
                 continue
             normalized.setdefault(section["id"], self._normalize_task(service, section))
         service["tasks"] = [normalized[section["id"]] for section in service.get("sections", []) if section["id"] in normalized]
@@ -225,13 +202,13 @@ class WorshipService:
         if user is None:
             return WorshipSectionCapabilities().model_dump()
         can_edit = self._can_edit_section(user, section)
-        music_count = len([item for item in service.get("sections", []) if item.get("section_type") in MUSIC_SECTION_TYPES])
+        music_count = len([item for item in service.get("sections", []) if self._is_music_section(item)])
         return WorshipSectionCapabilities(
             can_edit=can_edit,
             can_assign=self._is_manage_role(user),
             can_share=can_edit,
-            can_add_sibling_song=can_edit and section.get("section_type") in MUSIC_SECTION_TYPES,
-            can_remove=can_edit and section.get("section_type") in MUSIC_SECTION_TYPES and music_count > 1,
+            can_add_sibling_song=can_edit and self._is_music_section(section),
+            can_remove=can_edit and self._is_music_section(section) and music_count > 1,
         ).model_dump(mode="json")
 
     def _compute_review_summary(self, service: dict[str, Any]) -> dict[str, Any]:
@@ -298,12 +275,17 @@ class WorshipService:
     ) -> dict[str, Any]:
         now = iso_now()
         service_id = f"svc-{target_date.isoformat()}-{template['service_kind']}"
-        start_at = self._service_datetime(target_date, template["start_time"]).isoformat()
-        sections = [
-            {
+        start_dt = self._service_datetime(target_date, template["start_time"])
+        start_at = start_dt.isoformat()
+        input_templates = {item["id"]: item for item in await self.repository.list_input_templates(active_only=False)}
+        sections: list[dict[str, Any]] = []
+        tasks: list[dict[str, Any]] = []
+        for preset in template.get("default_sections", []):
+            section = {
                 "id": preset["id"],
                 "order": preset["order"],
-                "section_type": preset["section_type"],
+                "section_type_code": preset["section_type_code"],
+                "workspace_bucket": preset["workspace_bucket"],
                 "title": preset["title"],
                 "detail": preset.get("detail", ""),
                 "role": preset.get("role", ""),
@@ -311,42 +293,43 @@ class WorshipService:
                 "assignee_name": preset.get("assignee_name"),
                 "status": WorshipServiceStatus.waiting.value,
                 "duration_minutes": preset.get("duration_minutes", 0),
-                "template_key": preset.get("template_key", ""),
+                "due_offset_minutes": preset.get("due_offset_minutes", 0),
+                "input_template_id": preset.get("input_template_id", ""),
+                "slide_template_key": preset.get("slide_template_key", ""),
                 "notes": preset.get("notes", ""),
                 "content": preset.get("content", {}),
                 "slides": [],
                 "updated_at": now,
             }
-            for preset in template.get("default_sections", [])
-        ]
-        start_dt = self._service_datetime(target_date, template["start_time"])
-        preset_by_section_id = {}
-        for preset in template.get("task_presets", []):
-            due_at = (start_dt - timedelta(minutes=int(preset.get("due_offset_minutes", 0)))).isoformat()
-            for section_id in preset.get("section_ids", []):
-                preset_by_section_id[section_id] = {
-                    "id": f"task-{section_id}",
-                    "role": preset.get("role"),
-                    "scope": preset.get("scope"),
-                    "required_fields": preset.get("required_fields"),
-                    "status": WorshipServiceStatus.waiting.value,
-                    "due_at": due_at,
-                    "tips": preset.get("tips", ""),
-                    "guest_access": {
-                        "token_hash": None,
-                        "issued_at": None,
-                        "expires_at": None,
-                        "revoked_at": None,
-                        "last_opened_at": None,
+            sections.append(section)
+            input_template = input_templates.get(section["input_template_id"])
+            if input_template is None:
+                continue
+            tasks.append(
+                self._normalize_task(
+                    {},
+                    section,
+                    {
+                        "id": f"task-{section['id']}",
+                        "input_template_id": section["input_template_id"],
+                        "role": section.get("role", ""),
+                        "scope": self._task_scope(section),
+                        "required_fields": input_template.get("fields", []),
+                        "status": WorshipServiceStatus.waiting.value,
+                        "due_at": (start_dt - timedelta(minutes=int(section.get("due_offset_minutes", 0)))).isoformat(),
+                        "tips": input_template.get("tips", ""),
+                        "guest_access": {
+                            "token_hash": None,
+                            "issued_at": None,
+                            "expires_at": None,
+                            "revoked_at": None,
+                            "last_opened_at": None,
+                        },
+                        "last_submitted_at": None,
+                        "values": {},
                     },
-                    "last_submitted_at": None,
-                    "values": {},
-                }
-        tasks = [
-            self._normalize_task({}, section, preset_by_section_id.get(section["id"]))
-            for section in sections
-            if section["section_type"] in EDITABLE_SECTION_TYPES
-        ]
+                )
+            )
         service = {
             "id": service_id,
             "date": target_date.isoformat(),
@@ -438,8 +421,8 @@ class WorshipService:
             raise NotFoundError(f"Task for section '{section_id}' was not found.")
         return task
 
-    def _filtered_values(self, section: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
-        allowed = {field["key"] for field in self._default_required_fields(section)}
+    def _filtered_values(self, task: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
+        allowed = {field["key"] for field in self._required_fields(task)}
         return {key: value for key, value in values.items() if key in allowed}
 
     def _has_meaningful_values(self, values: dict[str, Any]) -> bool:
@@ -450,8 +433,8 @@ class WorshipService:
                 return True
         return False
 
-    def _is_complete(self, section: dict[str, Any], values: dict[str, Any]) -> bool:
-        for field in self._default_required_fields(section):
+    def _is_complete(self, task: dict[str, Any], values: dict[str, Any]) -> bool:
+        for field in self._required_fields(task):
             if not field.get("required", True):
                 continue
             value = values.get(field["key"])
@@ -462,37 +445,43 @@ class WorshipService:
                 return False
         return True
 
-    async def _apply_values_to_section(self, section: dict[str, Any], values: dict[str, Any], *, mark_complete: bool) -> dict[str, Any]:
-        values = self._filtered_values(section, values)
+    async def _apply_values_to_section(self, section: dict[str, Any], task: dict[str, Any], values: dict[str, Any], *, mark_complete: bool) -> dict[str, Any]:
+        values = self._filtered_values(task, values)
+        field_map = self._field_map(task)
         section.setdefault("content", {})
         section["content"].update(values)
-        if "templateKey" in values and values["templateKey"]:
-            section["template_key"] = str(values["templateKey"]).strip()
-        if "songTitle" in values and str(values["songTitle"]).strip():
-            section["title"] = str(values["songTitle"]).strip()
-        if "title" in values and str(values["title"]).strip():
-            section["title"] = str(values["title"]).strip()
-        if "body" in values:
-            section["detail"] = str(values["body"]).strip()
-        if "reference" in values:
-            reference = str(values["reference"]).strip()
-            section["detail"] = reference
-            match = re.match(r"^(.+?)\s+(\d+):(\d+)(?:-(\d+))?$", reference)
-            if match:
-                scripture = await self.lookup_scripture(
-                    book=match[1],
-                    chapter=int(match[2]),
-                    verse_start=int(match[3]),
-                    verse_end=int(match[4]) if match[4] else None,
-                )
-                section["slides"] = [slide.model_dump() for slide in scripture.slides]
-        if "notes" in values:
-            section["notes"] = str(values["notes"]).strip()
-        if "lyrics" in values:
-            parsed = self._parse_lyrics(str(values["lyrics"]), section.get("template_key") or "lyrics-16x9")
-            section["slides"] = [slide.model_dump() for slide in parsed.slides]
+        for key, value in values.items():
+            field = field_map[key]
+            text = str(value).strip() if isinstance(value, str) else value
+            binding = field.get("binding", "value")
+            if binding == "title" and isinstance(text, str):
+                section["title"] = text
+            elif binding == "detail" and isinstance(text, str):
+                section["detail"] = text
+            elif binding == "notes" and isinstance(text, str):
+                section["notes"] = text
+            elif binding == "slideTemplateKey" and isinstance(text, str):
+                section["slide_template_key"] = text
+        for key, value in values.items():
+            field = field_map[key]
+            if not isinstance(value, str):
+                continue
+            text = value.strip()
+            if field.get("field_type") == WorshipFieldType.scripture.value and text:
+                match = re.match(r"^(.+?)\s+(\d+):(\d+)(?:-(\d+))?$", text)
+                if match:
+                    scripture = await self.lookup_scripture(
+                        book=match[1],
+                        chapter=int(match[2]),
+                        verse_start=int(match[3]),
+                        verse_end=int(match[4]) if match[4] else None,
+                    )
+                    section["slides"] = [slide.model_dump() for slide in scripture.slides]
+            elif field.get("field_type") == WorshipFieldType.lyrics.value and text:
+                parsed = self._parse_lyrics(text, section.get("slide_template_key") or "lyrics-16x9")
+                section["slides"] = [slide.model_dump() for slide in parsed.slides]
         if mark_complete:
-            if not self._is_complete(section, values):
+            if not self._is_complete(task, values):
                 raise ConflictError("Required fields must be completed before marking this section complete.")
             section["status"] = WorshipServiceStatus.review.value
         else:
@@ -593,13 +582,14 @@ class WorshipService:
             self._ensure_section_access(user, section, action="assign")
         else:
             self._ensure_section_access(user, section, action="edit")
-        for key in ("title", "detail", "role", "assignee_id", "assignee_name", "status", "duration_minutes", "template_key", "notes", "content", "slides"):
+        for key in ("title", "detail", "role", "assignee_id", "assignee_name", "status", "duration_minutes", "due_offset_minutes", "input_template_id", "slide_template_key", "notes", "content", "slides"):
             if key in payload and payload[key] is not None:
                 section[key] = payload[key]
         if payload.get("editor_values") is not None:
             task = self._find_task_for_section(service, section_id)
             task["values"] = await self._apply_values_to_section(
                 section,
+                task,
                 payload.get("editor_values", {}),
                 mark_complete=bool(payload.get("mark_complete")),
             )
@@ -645,21 +635,27 @@ class WorshipService:
         service = await self.repository.get_service(service_id)
         self._ensure_version(service, payload["version"])
         after_section = self._find_section(service, payload["after_section_id"]) if payload.get("after_section_id") else None
-        if after_section is None or after_section.get("section_type") not in MUSIC_SECTION_TYPES:
-            raise ConflictError("New sections can only be inserted next to an existing song or special song section.")
+        if after_section is None or not self._is_music_section(after_section):
+            raise ConflictError("New sections can only be inserted next to an existing music section.")
         self._ensure_section_access(user, after_section, action="add_song")
+        section_type = await self.repository.get_section_type(payload["section_type_code"])
+        if section_type.get("workspace_bucket") != WorshipWorkspaceBucket.music.value:
+            raise ConflictError("Only music bucket section types can be inserted from this flow.")
         new_section = {
             "id": new_id("section"),
             "order": after_section["order"] + 1,
-            "section_type": payload["section_type"],
-            "title": "새 곡" if payload["section_type"] in MUSIC_SECTION_TYPES else "새 항목",
+            "section_type_code": payload["section_type_code"],
+            "workspace_bucket": section_type["workspace_bucket"],
+            "title": section_type.get("default_title") or "추가 곡",
             "detail": "",
-            "role": after_section.get("role", ""),
+            "role": section_type.get("default_role") or after_section.get("role", ""),
             "assignee_id": after_section.get("assignee_id"),
             "assignee_name": after_section.get("assignee_name"),
             "status": WorshipServiceStatus.waiting.value,
-            "duration_minutes": after_section.get("duration_minutes", 0),
-            "template_key": after_section.get("template_key", ""),
+            "duration_minutes": section_type.get("default_duration_minutes", 0),
+            "due_offset_minutes": section_type.get("default_due_offset_minutes", 0),
+            "input_template_id": section_type.get("default_input_template_id", ""),
+            "slide_template_key": section_type.get("default_slide_template_key", ""),
             "notes": "",
             "content": {},
             "slides": [],
@@ -670,17 +666,34 @@ class WorshipService:
                 section["order"] += 1
                 section["updated_at"] = iso_now()
         service["sections"].append(new_section)
-        source_task = self._find_task_for_section(service, after_section["id"])
         service.setdefault("tasks", []).append(
             self._normalize_task(
                 service,
                 new_section,
                 {
-                    **deepcopy(source_task),
                     "id": f"task-{new_section['id']}",
                     "section_id": new_section["id"],
-                    "scope": "추가 곡 입력",
+                    "input_template_id": new_section["input_template_id"],
+                    "role": new_section["role"],
+                    "scope": self._task_scope(new_section),
+                    "required_fields": next(
+                        (
+                            item.get("fields", [])
+                            for item in await self.repository.list_input_templates(active_only=False)
+                            if item["id"] == new_section["input_template_id"]
+                        ),
+                        [],
+                    ),
                     "status": WorshipServiceStatus.waiting.value,
+                    "due_at": (self._service_datetime(_parse_date(service["date"]), service["start_at"][11:16]) - timedelta(minutes=int(new_section.get("due_offset_minutes", 0)))).isoformat(),
+                    "tips": next(
+                        (
+                            item.get("tips", "")
+                            for item in await self.repository.list_input_templates(active_only=False)
+                            if item["id"] == new_section["input_template_id"]
+                        ),
+                        "",
+                    ),
                     "guest_access": {
                         "token_hash": None,
                         "issued_at": None,
@@ -711,7 +724,7 @@ class WorshipService:
         self._ensure_version(service, version)
         section = self._find_section(service, section_id)
         self._ensure_section_access(user, section, action="remove")
-        music_sections = [item for item in service.get("sections", []) if item.get("section_type") in MUSIC_SECTION_TYPES]
+        music_sections = [item for item in service.get("sections", []) if self._is_music_section(item)]
         if len(music_sections) <= 1:
             raise ConflictError("At least one music section must remain.")
         removed_order = section["order"]
@@ -816,7 +829,7 @@ class WorshipService:
         if expires_at and datetime.fromisoformat(expires_at) < datetime.now(self.timezone):
             raise ConflictError("This guest link has expired.")
         section = self._find_section(service, task["section_id"])
-        values = await self._apply_values_to_section(section, payload.values, mark_complete=payload.mark_complete)
+        values = await self._apply_values_to_section(section, task, payload.values, mark_complete=payload.mark_complete)
         task["values"] = values
         task["last_submitted_at"] = iso_now()
         service["metadata"]["updated_at"] = iso_now()
@@ -853,7 +866,7 @@ class WorshipService:
             translation=translation,
         )
 
-    def _parse_lyrics(self, lyrics: str, template_key: str) -> WorshipLyricsParseResponse:
+    def _parse_lyrics(self, lyrics: str, slide_template_key: str) -> WorshipLyricsParseResponse:
         slides: list[WorshipSlide] = []
         normalized = lyrics.replace("\r\n", "\n").strip()
         blocks = [block.strip() for block in normalized.split("\n\n") if block.strip()]
@@ -870,7 +883,7 @@ class WorshipService:
                     id=f"slide-{index}",
                     label=label,
                     lines=lines,
-                    template_key=template_key,
+                    slide_template_key=slide_template_key,
                 )
             )
         return WorshipLyricsParseResponse(slides=slides)
@@ -881,12 +894,12 @@ class WorshipService:
         service_id: str,
         section_id: str,
         lyrics: str,
-        template_key: str,
+        slide_template_key: str,
     ) -> WorshipLyricsParseResponse:
         service = await self.repository.get_service(service_id)
         section = self._find_section(service, section_id)
         self._ensure_section_access(user, section, action="edit")
-        return self._parse_lyrics(lyrics, template_key)
+        return self._parse_lyrics(lyrics, slide_template_key)
 
     def _build_preview_sections(self, service: dict[str, Any], selected_ids: list[str] | None = None) -> list[dict[str, Any]]:
         selected = set(selected_ids or [])
@@ -903,7 +916,7 @@ class WorshipService:
                         id=f"{preview['id']}-fallback",
                         label=preview["title"],
                         lines=[fallback],
-                        template_key=preview.get("template_key", ""),
+                        slide_template_key=preview.get("slide_template_key", ""),
                     ).model_dump()
                 ]
             preview_sections.append(preview)
@@ -918,7 +931,7 @@ class WorshipService:
                 "title": section["title"],
                 "detail": section.get("detail", ""),
                 "status": section["status"],
-                "template_key": section.get("template_key", ""),
+                "slide_template_key": section.get("slide_template_key", ""),
                 "notes": section.get("notes", ""),
             }
             for section in service.get("sections", [])
@@ -986,19 +999,131 @@ class WorshipService:
         await self.repository.save_service(self._sync_service(service))
         return state
 
+    def _usage_counts(self, templates: list[dict[str, Any]]) -> tuple[dict[str, int], dict[str, int], dict[str, int]]:
+        section_type_counts: dict[str, int] = {}
+        input_template_counts: dict[str, int] = {}
+        slide_template_counts: dict[str, int] = {}
+        for template in templates:
+            for section in template.get("default_sections", []):
+                section_type_counts[section["section_type_code"]] = section_type_counts.get(section["section_type_code"], 0) + 1
+                input_template_counts[section["input_template_id"]] = input_template_counts.get(section["input_template_id"], 0) + 1
+                if section.get("slide_template_key"):
+                    slide_template_counts[section["slide_template_key"]] = slide_template_counts.get(section["slide_template_key"], 0) + 1
+        return section_type_counts, input_template_counts, slide_template_counts
+
+    async def _validate_template_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        section_types = {item["code"]: item for item in await self.repository.list_section_types(active_only=False)}
+        input_templates = {item["id"]: item for item in await self.repository.list_input_templates(active_only=False)}
+        slide_templates = {item["key"]: item for item in await self.repository.list_slide_templates(active_only=False)}
+        next_payload = deepcopy(payload)
+        next_sections = []
+        for index, section in enumerate(next_payload.get("default_sections", []), start=1):
+            section_type = section_types.get(section["section_type_code"])
+            if section_type is None:
+                raise ConflictError(f"Unknown section type '{section['section_type_code']}'.")
+            if section["input_template_id"] not in input_templates:
+                raise ConflictError(f"Unknown input template '{section['input_template_id']}'.")
+            if section.get("slide_template_key") and section["slide_template_key"] not in slide_templates:
+                raise ConflictError(f"Unknown slide template '{section['slide_template_key']}'.")
+            next_section = deepcopy(section)
+            next_section["order"] = index
+            next_section["workspace_bucket"] = section_type["workspace_bucket"]
+            next_sections.append(next_section)
+        next_payload["default_sections"] = next_sections
+        return next_payload
+
     async def list_templates(self) -> list[WorshipTemplate]:
         return [WorshipTemplate.model_validate(item) for item in await self.repository.list_templates()]
 
     async def create_template(self, payload: WorshipTemplateUpsert) -> WorshipTemplate:
-        return WorshipTemplate.model_validate(await self.repository.create_template(payload.model_dump()))
+        validated = await self._validate_template_payload(payload.model_dump())
+        return WorshipTemplate.model_validate(await self.repository.create_template(validated))
 
     async def update_template(self, template_id: str, payload: WorshipTemplateUpsert) -> WorshipTemplate:
-        return WorshipTemplate.model_validate(
-            await self.repository.update_template(template_id, payload.model_dump())
-        )
+        validated = await self._validate_template_payload(payload.model_dump())
+        return WorshipTemplate.model_validate(await self.repository.update_template(template_id, validated))
 
     async def delete_template(self, template_id: str) -> None:
         await self.repository.delete_template(template_id)
+
+    async def list_section_types(self) -> list[WorshipSectionTypeDefinition]:
+        templates = await self.repository.list_templates()
+        section_counts, _, _ = self._usage_counts(templates)
+        return [
+            WorshipSectionTypeDefinition.model_validate({**item, "usage_count": section_counts.get(item["code"], 0)})
+            for item in await self.repository.list_section_types()
+        ]
+
+    async def create_section_type(self, payload: WorshipSectionTypeDefinitionUpsert) -> WorshipSectionTypeDefinition:
+        if payload.default_input_template_id:
+            await self.repository.get_input_template(payload.default_input_template_id)
+        if payload.default_slide_template_key:
+            await self.repository.get_slide_template(payload.default_slide_template_key)
+        return WorshipSectionTypeDefinition.model_validate(await self.repository.create_section_type(payload.model_dump()))
+
+    async def update_section_type(self, code: str, payload: WorshipSectionTypeDefinitionUpsert) -> WorshipSectionTypeDefinition:
+        if payload.default_input_template_id:
+            await self.repository.get_input_template(payload.default_input_template_id)
+        if payload.default_slide_template_key:
+            await self.repository.get_slide_template(payload.default_slide_template_key)
+        return WorshipSectionTypeDefinition.model_validate(await self.repository.update_section_type(code, payload.model_dump()))
+
+    async def delete_section_type(self, code: str) -> None:
+        templates = await self.repository.list_templates()
+        section_counts, _, _ = self._usage_counts(templates)
+        if section_counts.get(code, 0) > 0:
+            raise ConflictError("Section type is in use. Deactivate it instead.")
+        await self.repository.delete_section_type(code)
+
+    async def list_input_templates(self) -> list[WorshipInputTemplate]:
+        templates = await self.repository.list_templates()
+        _, input_counts, _ = self._usage_counts(templates)
+        return [
+            WorshipInputTemplate.model_validate({**item, "usage_count": input_counts.get(item["id"], 0)})
+            for item in await self.repository.list_input_templates()
+        ]
+
+    async def create_input_template(self, payload: WorshipInputTemplateUpsert) -> WorshipInputTemplate:
+        return WorshipInputTemplate.model_validate(await self.repository.create_input_template(payload.model_dump()))
+
+    async def update_input_template(self, template_id: str, payload: WorshipInputTemplateUpsert) -> WorshipInputTemplate:
+        return WorshipInputTemplate.model_validate(await self.repository.update_input_template(template_id, payload.model_dump()))
+
+    async def delete_input_template(self, template_id: str) -> None:
+        templates = await self.repository.list_templates()
+        _, input_counts, _ = self._usage_counts(templates)
+        section_types = await self.repository.list_section_types(active_only=False)
+        default_usage = sum(
+            1 for item in section_types if item.get("default_input_template_id") == template_id
+        )
+        if input_counts.get(template_id, 0) > 0 or default_usage > 0:
+            raise ConflictError("Input template is in use. Deactivate it instead.")
+        await self.repository.delete_input_template(template_id)
+
+    async def list_slide_templates(self) -> list[WorshipSlideTemplate]:
+        templates = await self.repository.list_templates()
+        _, _, slide_counts = self._usage_counts(templates)
+        return [
+            WorshipSlideTemplate.model_validate({**item, "usage_count": slide_counts.get(item["key"], 0)})
+            for item in await self.repository.list_slide_templates()
+        ]
+
+    async def create_slide_template(self, payload: WorshipSlideTemplateUpsert) -> WorshipSlideTemplate:
+        return WorshipSlideTemplate.model_validate(await self.repository.create_slide_template(payload.model_dump()))
+
+    async def update_slide_template(self, key: str, payload: WorshipSlideTemplateUpsert) -> WorshipSlideTemplate:
+        return WorshipSlideTemplate.model_validate(await self.repository.update_slide_template(key, payload.model_dump()))
+
+    async def delete_slide_template(self, key: str) -> None:
+        templates = await self.repository.list_templates()
+        _, _, slide_counts = self._usage_counts(templates)
+        section_types = await self.repository.list_section_types(active_only=False)
+        default_usage = sum(
+            1 for item in section_types if item.get("default_slide_template_key") == key
+        )
+        if slide_counts.get(key, 0) > 0 or default_usage > 0:
+            raise ConflictError("Slide template is in use. Deactivate it instead.")
+        await self.repository.delete_slide_template(key)
 
     async def get_presentation_state(self) -> DisplayState:
         state = WorshipPresentationState.model_validate(await self.repository.get_presentation_state())
@@ -1052,7 +1177,7 @@ class WorshipService:
                 id=f"{item_id}-legacy",
                 label=payload.title,
                 lines=[line for line in payload.content.splitlines() if line.strip()] or [payload.content],
-                template_key=section.get("template_key", ""),
+                slide_template_key=section.get("slide_template_key", ""),
             ).model_dump()
         ]
         section["status"] = WorshipServiceStatus.review.value
@@ -1077,3 +1202,4 @@ class WorshipService:
             content=state.content,
             updatedAt=datetime.fromisoformat(state.updated_at) if state.updated_at else None,
         )
+

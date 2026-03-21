@@ -151,7 +151,7 @@ def test_worship_sections_reorder_and_parse_lyrics() -> None:
         f"/api/v1/worship/services/{service['id']}/sections/opening-song/lyrics:parse",
         json={
             "lyrics": "Verse 1\n주를 찬양합니다\n\nChorus\n영광 돌립니다",
-            "templateKey": "lyrics-16x9",
+            "slideTemplateKey": "lyrics-16x9",
         },
     )
     assert parse_response.status_code == 200
@@ -188,7 +188,7 @@ def test_guest_input_link_filters_values_and_updates_sections() -> None:
 
     guest_view = client.get(f"/api/v1/worship/input/{link_payload['token']}")
     assert guest_view.status_code == 200
-    assert {field["key"] for field in guest_view.json()["requiredFields"]} == {"songTitle", "lyrics"}
+    assert {field["key"] for field in guest_view.json()["requiredFields"]} == {"songTitle", "lyrics", "slideTemplateKey"}
 
     submit_response = client.put(
         f"/api/v1/worship/input/{link_payload['token']}",
@@ -335,8 +335,6 @@ def test_master_can_list_create_and_update_worship_templates() -> None:
             "startTime": "16:00",
             "generationRule": "daily",
             "defaultSections": [],
-            "taskPresets": [],
-            "templatePresets": [],
             "isActive": False,
         },
     )
@@ -352,8 +350,6 @@ def test_master_can_list_create_and_update_worship_templates() -> None:
             "startTime": "16:00",
             "generationRule": "daily",
             "defaultSections": [],
-            "taskPresets": [],
-            "templatePresets": [],
             "isActive": True,
         },
     )
@@ -373,8 +369,6 @@ def test_deleting_template_does_not_remove_existing_service() -> None:
             "startTime": "16:00",
             "generationRule": "daily",
             "defaultSections": [],
-            "taskPresets": [],
-            "templatePresets": [],
             "isActive": True,
         },
     )
@@ -401,6 +395,89 @@ def test_deleting_template_does_not_remove_existing_service() -> None:
 
     missing_delete = client.delete(f"/api/v1/admin/worship-templates/{created['id']}")
     assert missing_delete.status_code == 404
+
+
+def test_master_can_manage_v2_worship_resources() -> None:
+    client = create_master_client()
+
+    section_types_response = client.get("/api/v1/admin/worship-section-types")
+    input_templates_response = client.get("/api/v1/admin/worship-input-templates")
+    slide_templates_response = client.get("/api/v1/admin/worship-slide-templates")
+
+    assert section_types_response.status_code == 200
+    assert input_templates_response.status_code == 200
+    assert slide_templates_response.status_code == 200
+    assert any(item["usageCount"] >= 0 for item in section_types_response.json())
+    assert any(item["usageCount"] >= 0 for item in input_templates_response.json())
+    assert any(item["usageCount"] >= 0 for item in slide_templates_response.json())
+
+    create_input_response = client.post(
+        "/api/v1/admin/worship-input-templates",
+        json={
+            "id": "input-broadcast-prayer-test",
+            "label": "방송 기도 테스트",
+            "description": "테스트 입력 템플릿",
+            "tips": "기도문을 입력합니다.",
+            "fields": [
+                {
+                    "key": "title",
+                    "label": "제목",
+                    "fieldType": "text",
+                    "binding": "title",
+                    "required": True,
+                    "helpText": "",
+                }
+            ],
+            "isActive": True,
+        },
+    )
+    assert create_input_response.status_code == 200
+
+    create_slide_response = client.post(
+        "/api/v1/admin/worship-slide-templates",
+        json={
+            "key": "broadcast-prayer-slide-test",
+            "label": "방송 기도 슬라이드",
+            "description": "테스트 슬라이드 템플릿",
+            "isActive": True,
+        },
+    )
+    assert create_slide_response.status_code == 200
+
+    create_section_type_response = client.post(
+        "/api/v1/admin/worship-section-types",
+        json={
+            "code": "broadcast_prayer_test",
+            "label": "방송 기도 테스트",
+            "description": "테스트 순서 타입",
+            "workspaceBucket": "content",
+            "defaultTitle": "대표 기도",
+            "defaultRole": "broadcast",
+            "defaultDurationMinutes": 3,
+            "defaultDueOffsetMinutes": 20,
+            "defaultInputTemplateId": "input-broadcast-prayer-test",
+            "defaultSlideTemplateKey": "broadcast-prayer-slide-test",
+            "isActive": True,
+            "sortOrder": 90,
+        },
+    )
+    assert create_section_type_response.status_code == 200
+    assert create_section_type_response.json()["defaultInputTemplateId"] == "input-broadcast-prayer-test"
+
+    delete_input_response = client.delete("/api/v1/admin/worship-input-templates/input-broadcast-prayer-test")
+    assert delete_input_response.status_code == 409
+
+    delete_slide_response = client.delete("/api/v1/admin/worship-slide-templates/broadcast-prayer-slide-test")
+    assert delete_slide_response.status_code == 409
+
+    delete_section_type_response = client.delete("/api/v1/admin/worship-section-types/broadcast_prayer_test")
+    assert delete_section_type_response.status_code == 204
+
+    delete_input_response = client.delete("/api/v1/admin/worship-input-templates/input-broadcast-prayer-test")
+    assert delete_input_response.status_code == 204
+
+    delete_slide_response = client.delete("/api/v1/admin/worship-slide-templates/broadcast-prayer-slide-test")
+    assert delete_slide_response.status_code == 204
 
 
 def test_worship_order_target_requires_existing_parent() -> None:

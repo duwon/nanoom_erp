@@ -57,28 +57,25 @@ export type ApprovalTemplate = {
 };
 
 export type WorshipStatus = "waiting" | "progress" | "review" | "complete";
-export type WorshipSectionType =
-  | "song"
-  | "special_song"
-  | "scripture"
-  | "message"
-  | "notice"
-  | "prayer"
-  | "media";
+export type WorshipSectionType = string;
+export type WorshipWorkspaceBucket = "music" | "content";
 export type WorshipFieldType =
   | "text"
   | "textarea"
   | "song_search"
   | "lyrics"
   | "scripture"
-  | "template";
+  | "template"
+  | "slide_template";
+export type WorshipFieldBinding = "value" | "title" | "detail" | "notes" | "slideTemplateKey";
 export type WorshipGenerationRule = "daily" | "sunday" | "wednesday" | "friday";
 
 export type WorshipSlide = {
   id: string;
   label: string;
   lines: string[];
-  templateKey: string;
+  slideTemplateKey: string;
+  templateKey?: string;
   aspectRatio: string;
   notes: string;
 };
@@ -94,7 +91,9 @@ export type WorshipSectionCapabilities = {
 export type WorshipSection = {
   id: string;
   order: number;
+  sectionTypeCode: WorshipSectionType;
   sectionType: WorshipSectionType;
+  workspaceBucket?: WorshipWorkspaceBucket;
   title: string;
   detail: string;
   role: string;
@@ -102,6 +101,9 @@ export type WorshipSection = {
   assigneeName: string | null;
   status: WorshipStatus;
   durationMinutes: number;
+  dueOffsetMinutes?: number;
+  inputTemplateId?: string;
+  slideTemplateKey: string;
   templateKey: string;
   notes: string;
   content: Record<string, unknown>;
@@ -114,6 +116,7 @@ export type WorshipTaskFieldSpec = {
   key: string;
   label: string;
   fieldType: WorshipFieldType;
+  binding?: WorshipFieldBinding;
   required: boolean;
   helpText: string;
 };
@@ -129,6 +132,7 @@ export type WorshipGuestAccess = {
 export type WorshipTask = {
   id: string;
   sectionId: string;
+  inputTemplateId?: string;
   role: string;
   scope: string;
   requiredFields: WorshipTaskFieldSpec[];
@@ -150,24 +154,29 @@ export type WorshipReviewSummary = {
   pendingTaskCount: number;
 };
 
-export type WorshipTemplatePreset = {
-  key: string;
-  label: string;
-  description: string;
-};
-
 export type WorshipTemplateSectionPreset = {
   id: string;
   order: number;
+  sectionTypeCode?: WorshipSectionType;
   sectionType: WorshipSectionType;
   title: string;
   detail: string;
   role: string;
   assigneeName: string | null;
   durationMinutes: number;
+  dueOffsetMinutes?: number;
+  inputTemplateId?: string;
+  slideTemplateKey?: string;
+  workspaceBucket?: WorshipWorkspaceBucket;
   templateKey: string;
   notes: string;
   content: Record<string, unknown>;
+};
+
+export type WorshipTemplatePreset = {
+  key: string;
+  label: string;
+  description: string;
 };
 
 export type WorshipTaskPreset = {
@@ -179,6 +188,50 @@ export type WorshipTaskPreset = {
   dueOffsetMinutes: number;
   tips: string;
 };
+
+export type WorshipSectionTypeDefinition = {
+  code: string;
+  label: string;
+  description: string;
+  workspaceBucket: WorshipWorkspaceBucket;
+  defaultTitle: string;
+  defaultRole: string;
+  defaultDurationMinutes: number;
+  defaultDueOffsetMinutes: number;
+  defaultInputTemplateId: string;
+  defaultSlideTemplateKey: string;
+  isActive: boolean;
+  sortOrder: number;
+  usageCount: number;
+};
+
+export type WorshipSectionTypeDefinitionUpsert = Omit<WorshipSectionTypeDefinition, "usageCount">;
+
+export type WorshipInputTemplate = {
+  id: string;
+  label: string;
+  description: string;
+  tips: string;
+  fields: WorshipTaskFieldSpec[];
+  isActive: boolean;
+  usageCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WorshipInputTemplateUpsert = Omit<WorshipInputTemplate, "usageCount" | "createdAt" | "updatedAt">;
+
+export type WorshipSlideTemplate = {
+  key: string;
+  label: string;
+  description: string;
+  isActive: boolean;
+  usageCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WorshipSlideTemplateUpsert = Omit<WorshipSlideTemplate, "usageCount" | "createdAt" | "updatedAt">;
 
 export type WorshipTemplate = {
   id: string;
@@ -297,7 +350,8 @@ export type WorshipReviewItem = {
   title: string;
   detail: string;
   status: WorshipStatus;
-  templateKey: string;
+  slideTemplateKey: string;
+  templateKey?: string;
   notes: string;
 };
 

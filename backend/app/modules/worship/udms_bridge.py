@@ -15,8 +15,8 @@ WORSHIP_SECTION_TARGET_TYPES = {
 DEFAULT_SECTION_TARGET_TYPE = "WorshipContent"
 
 
-def _section_target_type(section_type: str) -> str:
-    return WORSHIP_SECTION_TARGET_TYPES.get(section_type, DEFAULT_SECTION_TARGET_TYPE)
+def _section_target_type(section_type_code: str) -> str:
+    return WORSHIP_SECTION_TARGET_TYPES.get(section_type_code, DEFAULT_SECTION_TARGET_TYPE)
 
 
 def _order_target_policies() -> list[dict[str, Any]]:
@@ -82,7 +82,7 @@ class WorshipUdmsBridge:
         for section in service.get("sections", []):
             refs[section["id"]] = {
                 "document_id": section_doc_ids.get(section["id"]),
-                "section_type": section["section_type"],
+                "section_type_code": section["section_type_code"],
                 "title": section["title"],
                 "order": section["order"],
             }
@@ -101,7 +101,7 @@ class WorshipUdmsBridge:
         return {
             "service_id": service["id"],
             "section_id": section["id"],
-            "section_type": section["section_type"],
+            "section_type_code": section["section_type_code"],
             "title": section["title"],
             "detail": section.get("detail", ""),
             "role": section.get("role", ""),
@@ -111,7 +111,7 @@ class WorshipUdmsBridge:
             },
             "status": section.get("status", ""),
             "duration_minutes": section.get("duration_minutes", 0),
-            "template_key": section.get("template_key", ""),
+            "slide_template_key": section.get("slide_template_key", ""),
             "notes": section.get("notes", ""),
             "content": deepcopy(section.get("content", {})),
             "slides": deepcopy(section.get("slides", [])),
@@ -181,7 +181,7 @@ class WorshipUdmsBridge:
             section_doc = await self._upsert_document(
                 document_id=section_doc_ids.get(section["id"]),
                 actor_id=actor_id,
-                target_type=_section_target_type(section["section_type"]),
+                target_type=_section_target_type(section["section_type_code"]),
                 target_id=next_service["id"],
                 title=section["title"],
                 body=section.get("detail") or section["title"],

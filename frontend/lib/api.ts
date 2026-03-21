@@ -21,11 +21,17 @@ import type {
   WorshipCalendarResponse,
   WorshipGuestLinkResponse,
   WorshipGuestTaskView,
+  WorshipInputTemplate,
+  WorshipInputTemplateUpsert,
   WorshipPresentationState,
   WorshipReviewResponse,
   WorshipScriptureLookupResponse,
   WorshipSection,
+  WorshipSectionTypeDefinition,
+  WorshipSectionTypeDefinitionUpsert,
   WorshipServiceDetail,
+  WorshipSlideTemplate,
+  WorshipSlideTemplateUpsert,
   WorshipSongLookupItem,
   WorshipTemplate,
   TargetTypeDescriptor,
@@ -37,6 +43,131 @@ import { getPublicApiBaseUrl } from "@/lib/api-base-url";
 
 function getApiV1BaseUrl() {
   return `${getPublicApiBaseUrl()}/api/v1`;
+}
+
+function normalizeWorshipSlide<T extends { slideTemplateKey?: string; templateKey?: string }>(slide: T): T {
+  return {
+    ...slide,
+    slideTemplateKey: slide.slideTemplateKey ?? slide.templateKey ?? "",
+    templateKey: slide.templateKey ?? slide.slideTemplateKey ?? "",
+  };
+}
+
+function normalizeWorshipSection<T extends {
+  sectionTypeCode?: string;
+  sectionType?: string;
+  slideTemplateKey?: string;
+  templateKey?: string;
+  slides?: Array<{ slideTemplateKey?: string; templateKey?: string }>;
+}>(section: T): T {
+  return {
+    ...section,
+    sectionTypeCode: section.sectionTypeCode ?? section.sectionType ?? "",
+    sectionType: section.sectionType ?? section.sectionTypeCode ?? "",
+    slideTemplateKey: section.slideTemplateKey ?? section.templateKey ?? "",
+    templateKey: section.templateKey ?? section.slideTemplateKey ?? "",
+    slides: section.slides?.map((slide) => normalizeWorshipSlide(slide)) ?? [],
+  };
+}
+
+function normalizeWorshipTemplate<T extends {
+  defaultSections: Array<{
+    sectionTypeCode?: string;
+    sectionType?: string;
+    slideTemplateKey?: string;
+    templateKey?: string;
+  }>;
+  taskPresets?: unknown[];
+  templatePresets?: unknown[];
+}>(template: T): T {
+  return {
+    ...template,
+    defaultSections: template.defaultSections.map((section) => normalizeWorshipSection(section)),
+    taskPresets: template.taskPresets ?? [],
+    templatePresets: template.templatePresets ?? [],
+  };
+}
+
+function defaultInputTemplateIdForSection(sectionTypeCode: string) {
+  switch (sectionTypeCode) {
+    case "song":
+    case "special_song":
+      return "input-song-lyrics";
+    case "scripture":
+      return "input-scripture";
+    case "message":
+      return "input-message-notes";
+    case "prayer":
+      return "input-prayer";
+    case "notice":
+    case "media":
+      return "input-generic-notes";
+    default:
+      return "input-generic-notes";
+  }
+}
+
+function defaultWorkspaceBucketForSection(sectionTypeCode: string) {
+  switch (sectionTypeCode) {
+    case "song":
+    case "special_song":
+      return "music";
+    default:
+      return "content";
+  }
+}
+
+function buildWorshipTemplatePayload(payload: {
+  serviceKind: string;
+  displayName: string;
+  startTime: string;
+  generationRule: string;
+  defaultSections: Array<Record<string, unknown>>;
+  isActive: boolean;
+}) {
+  return {
+    serviceKind: payload.serviceKind,
+    displayName: payload.displayName,
+    startTime: payload.startTime,
+    generationRule: payload.generationRule,
+    isActive: payload.isActive,
+    defaultSections: payload.defaultSections.map((section, index) => {
+      const sectionTypeCode = String(section.sectionTypeCode ?? section.sectionType ?? "");
+      const slideTemplateKey = String(section.slideTemplateKey ?? section.templateKey ?? "");
+      return {
+        id: String(section.id ?? `section-${index + 1}`),
+        order: Number(section.order ?? index + 1),
+        sectionTypeCode,
+        title: String(section.title ?? ""),
+        detail: String(section.detail ?? ""),
+        role: String(section.role ?? ""),
+        assigneeName: section.assigneeName == null ? null : String(section.assigneeName),
+        durationMinutes: Number(section.durationMinutes ?? 0),
+        dueOffsetMinutes: Number(section.dueOffsetMinutes ?? 0),
+        inputTemplateId: String(section.inputTemplateId ?? defaultInputTemplateIdForSection(sectionTypeCode)),
+        slideTemplateKey,
+        workspaceBucket: String(section.workspaceBucket ?? defaultWorkspaceBucketForSection(sectionTypeCode)),
+        notes: String(section.notes ?? ""),
+        content: typeof section.content === "object" && section.content ? (section.content as Record<string, unknown>) : {},
+      };
+    }),
+  };
+}
+
+function normalizeWorshipService<T extends {
+  sections: Array<{
+    sectionTypeCode?: string;
+    sectionType?: string;
+    slideTemplateKey?: string;
+    templateKey?: string;
+    slides?: Array<{ slideTemplateKey?: string; templateKey?: string }>;
+  }>;
+  reviewSummary?: unknown;
+}>(service: T): T {
+  return {
+    ...service,
+    sections: service.sections.map((section) => normalizeWorshipSection(section)),
+  };
 }
 
 export function getOAuthStartUrl(provider: SocialProvider, nextPath = "/") {
@@ -419,27 +550,27 @@ export async function getWorshipService(serviceId: string) {
     cache: "no-store",
     credentials: "include",
   });
-  return handleResponse<WorshipServiceDetail>(response);
+  return normalizeWorshipService(await handleResponse<WorshipServiceDetail>(response));
 }
 
 export async function createWorshipService(payload: {
   targetDate: string;
   templateId: string;
 }): Promise<WorshipServiceDetail> {
-  return requestJson<WorshipServiceDetail>(`${getApiV1BaseUrl()}/worship/services`, {
+  return normalizeWorshipService(await requestJson<WorshipServiceDetail>(`${getApiV1BaseUrl()}/worship/services`, {
     method: "POST",
     body: JSON.stringify(payload),
-  });
+  }));
 }
 
 export async function updateWorshipService(
   serviceId: string,
   payload: { version: number; summary?: string; serviceName?: string; startAt?: string },
 ): Promise<WorshipServiceDetail> {
-  return requestJson<WorshipServiceDetail>(`${getApiV1BaseUrl()}/worship/services/${serviceId}`, {
+  return normalizeWorshipService(await requestJson<WorshipServiceDetail>(`${getApiV1BaseUrl()}/worship/services/${serviceId}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
-  });
+  }));
 }
 
 export async function updateWorshipSection(
@@ -454,7 +585,9 @@ export async function updateWorshipSection(
     assigneeName?: string | null;
     status?: string;
     durationMinutes?: number;
-    templateKey?: string;
+    dueOffsetMinutes?: number;
+    inputTemplateId?: string;
+    slideTemplateKey?: string;
     notes?: string;
     content?: Record<string, unknown>;
     slides?: WorshipSection["slides"];
@@ -462,20 +595,28 @@ export async function updateWorshipSection(
     markComplete?: boolean;
   },
 ): Promise<WorshipServiceDetail> {
-  return requestJson<WorshipServiceDetail>(`${getApiV1BaseUrl()}/worship/services/${serviceId}/sections/${sectionId}`, {
+  return normalizeWorshipService(await requestJson<WorshipServiceDetail>(`${getApiV1BaseUrl()}/worship/services/${serviceId}/sections/${sectionId}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
-  });
+  }));
 }
 
 export async function addWorshipSection(
   serviceId: string,
-  payload: { version: number; afterSectionId: string; sectionType: WorshipSection["sectionType"] },
+  payload: {
+    version: number;
+    afterSectionId: string;
+    sectionTypeCode?: WorshipSection["sectionTypeCode"];
+    sectionType?: WorshipSection["sectionTypeCode"];
+  },
 ): Promise<WorshipServiceDetail> {
-  return requestJson<WorshipServiceDetail>(`${getApiV1BaseUrl()}/worship/services/${serviceId}/sections`, {
+  return normalizeWorshipService(await requestJson<WorshipServiceDetail>(`${getApiV1BaseUrl()}/worship/services/${serviceId}/sections`, {
     method: "POST",
-    body: JSON.stringify(payload),
-  });
+    body: JSON.stringify({
+      ...payload,
+      sectionTypeCode: payload.sectionTypeCode ?? payload.sectionType,
+    }),
+  }));
 }
 
 export async function deleteWorshipSection(
@@ -490,17 +631,17 @@ export async function deleteWorshipSection(
       credentials: "include",
     },
   );
-  return handleResponse<WorshipServiceDetail>(response);
+  return normalizeWorshipService(await handleResponse<WorshipServiceDetail>(response));
 }
 
 export async function reorderWorshipSections(
   serviceId: string,
   payload: { version: number; sections: Array<{ sectionId: string; order: number }> },
 ): Promise<WorshipServiceDetail> {
-  return requestJson<WorshipServiceDetail>(`${getApiV1BaseUrl()}/worship/services/${serviceId}/sections/reorder`, {
+  return normalizeWorshipService(await requestJson<WorshipServiceDetail>(`${getApiV1BaseUrl()}/worship/services/${serviceId}/sections/reorder`, {
     method: "POST",
     body: JSON.stringify(payload),
-  });
+  }));
 }
 
 export async function issueWorshipGuestLink(
@@ -571,7 +712,7 @@ export async function lookupWorshipScripture(params: {
 export async function parseWorshipLyrics(
   serviceId: string,
   sectionId: string,
-  payload: { lyrics: string; templateKey?: string },
+  payload: { lyrics: string; slideTemplateKey?: string },
 ): Promise<{ slides: WorshipSection["slides"] }> {
   return requestJson<{ slides: WorshipSection["slides"] }>(
     `${getApiV1BaseUrl()}/worship/services/${serviceId}/sections/${sectionId}/lyrics:parse`,
@@ -587,7 +728,20 @@ export async function getWorshipReview(serviceId: string): Promise<WorshipReview
     cache: "no-store",
     credentials: "include",
   });
-  return handleResponse<WorshipReviewResponse>(response);
+  const review = await handleResponse<WorshipReviewResponse>(response);
+  return {
+    ...review,
+    service: normalizeWorshipService(review.service),
+    items: review.items.map((item) => ({
+      ...item,
+      slideTemplateKey: item.slideTemplateKey ?? item.templateKey ?? "",
+      templateKey: item.templateKey ?? item.slideTemplateKey ?? "",
+    })),
+    preview: {
+      ...review.preview,
+      sections: review.preview.sections.map((section) => normalizeWorshipSection(section)),
+    },
+  };
 }
 
 export async function activateWorshipPresentation(
@@ -610,7 +764,7 @@ export async function listWorshipTemplates(): Promise<WorshipTemplate[]> {
     cache: "no-store",
     credentials: "include",
   });
-  return handleResponse<WorshipTemplate[]>(response);
+  return (await handleResponse<WorshipTemplate[]>(response)).map((template) => normalizeWorshipTemplate(template));
 }
 
 export async function createWorshipTemplate(payload: {
@@ -618,15 +772,13 @@ export async function createWorshipTemplate(payload: {
   displayName: string;
   startTime: string;
   generationRule: string;
-  defaultSections: unknown[];
-  taskPresets: unknown[];
-  templatePresets: unknown[];
+  defaultSections: Array<Record<string, unknown>>;
   isActive: boolean;
 }): Promise<WorshipTemplate> {
-  return requestJson<WorshipTemplate>(`${getApiV1BaseUrl()}/admin/worship-templates`, {
+  return normalizeWorshipTemplate(await requestJson<WorshipTemplate>(`${getApiV1BaseUrl()}/admin/worship-templates`, {
     method: "POST",
-    body: JSON.stringify(payload),
-  });
+    body: JSON.stringify(buildWorshipTemplatePayload(payload)),
+  }));
 }
 
 export async function updateWorshipTemplate(
@@ -636,20 +788,125 @@ export async function updateWorshipTemplate(
     displayName: string;
     startTime: string;
     generationRule: string;
-    defaultSections: unknown[];
-    taskPresets: unknown[];
-    templatePresets: unknown[];
+    defaultSections: Array<Record<string, unknown>>;
     isActive: boolean;
   },
 ): Promise<WorshipTemplate> {
-  return requestJson<WorshipTemplate>(`${getApiV1BaseUrl()}/admin/worship-templates/${templateId}`, {
+  return normalizeWorshipTemplate(await requestJson<WorshipTemplate>(`${getApiV1BaseUrl()}/admin/worship-templates/${templateId}`, {
+    method: "PUT",
+    body: JSON.stringify(buildWorshipTemplatePayload(payload)),
+  }));
+}
+
+export async function deleteWorshipTemplate(templateId: string): Promise<void> {
+  const response = await fetch(`${getApiV1BaseUrl()}/admin/worship-templates/${templateId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
+}
+
+export async function listWorshipSectionTypes(): Promise<WorshipSectionTypeDefinition[]> {
+  const response = await fetch(`${getApiV1BaseUrl()}/admin/worship-section-types`, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  return handleResponse<WorshipSectionTypeDefinition[]>(response);
+}
+
+export async function createWorshipSectionType(
+  payload: WorshipSectionTypeDefinitionUpsert,
+): Promise<WorshipSectionTypeDefinition> {
+  return requestJson<WorshipSectionTypeDefinition>(`${getApiV1BaseUrl()}/admin/worship-section-types`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateWorshipSectionType(
+  code: string,
+  payload: WorshipSectionTypeDefinitionUpsert,
+): Promise<WorshipSectionTypeDefinition> {
+  return requestJson<WorshipSectionTypeDefinition>(`${getApiV1BaseUrl()}/admin/worship-section-types/${code}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
 }
 
-export async function deleteWorshipTemplate(templateId: string): Promise<void> {
-  const response = await fetch(`${getApiV1BaseUrl()}/admin/worship-templates/${templateId}`, {
+export async function deleteWorshipSectionType(code: string): Promise<void> {
+  const response = await fetch(`${getApiV1BaseUrl()}/admin/worship-section-types/${code}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
+}
+
+export async function listWorshipInputTemplates(): Promise<WorshipInputTemplate[]> {
+  const response = await fetch(`${getApiV1BaseUrl()}/admin/worship-input-templates`, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  return handleResponse<WorshipInputTemplate[]>(response);
+}
+
+export async function createWorshipInputTemplate(payload: WorshipInputTemplateUpsert): Promise<WorshipInputTemplate> {
+  return requestJson<WorshipInputTemplate>(`${getApiV1BaseUrl()}/admin/worship-input-templates`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateWorshipInputTemplate(
+  templateId: string,
+  payload: WorshipInputTemplateUpsert,
+): Promise<WorshipInputTemplate> {
+  return requestJson<WorshipInputTemplate>(`${getApiV1BaseUrl()}/admin/worship-input-templates/${templateId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteWorshipInputTemplate(templateId: string): Promise<void> {
+  const response = await fetch(`${getApiV1BaseUrl()}/admin/worship-input-templates/${templateId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
+}
+
+export async function listWorshipSlideTemplates(): Promise<WorshipSlideTemplate[]> {
+  const response = await fetch(`${getApiV1BaseUrl()}/admin/worship-slide-templates`, {
+    cache: "no-store",
+    credentials: "include",
+  });
+  return handleResponse<WorshipSlideTemplate[]>(response);
+}
+
+export async function createWorshipSlideTemplate(payload: WorshipSlideTemplateUpsert): Promise<WorshipSlideTemplate> {
+  return requestJson<WorshipSlideTemplate>(`${getApiV1BaseUrl()}/admin/worship-slide-templates`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateWorshipSlideTemplate(
+  key: string,
+  payload: WorshipSlideTemplateUpsert,
+): Promise<WorshipSlideTemplate> {
+  return requestJson<WorshipSlideTemplate>(`${getApiV1BaseUrl()}/admin/worship-slide-templates/${key}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteWorshipSlideTemplate(key: string): Promise<void> {
+  const response = await fetch(`${getApiV1BaseUrl()}/admin/worship-slide-templates/${key}`, {
     method: "DELETE",
     credentials: "include",
   });

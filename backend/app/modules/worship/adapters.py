@@ -102,7 +102,7 @@ class InMemoryScriptureAdapter:
                 id=f"scripture-{index}",
                 label=f"{reference} ({index + 1}/{len(lines)})",
                 lines=[line],
-                template_key="scripture-main",
+                slide_template_key="scripture-main",
                 notes="",
             )
             for index, line in enumerate(lines)

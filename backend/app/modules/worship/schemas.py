@@ -15,14 +15,9 @@ class WorshipServiceStatus(StrEnum):
     complete = "complete"
 
 
-class WorshipSectionType(StrEnum):
-    song = "song"
-    special_song = "special_song"
-    scripture = "scripture"
-    message = "message"
-    notice = "notice"
-    prayer = "prayer"
-    media = "media"
+class WorshipWorkspaceBucket(StrEnum):
+    music = "music"
+    content = "content"
 
 
 class WorshipFieldType(StrEnum):
@@ -31,7 +26,15 @@ class WorshipFieldType(StrEnum):
     song_search = "song_search"
     lyrics = "lyrics"
     scripture = "scripture"
-    template = "template"
+    slide_template = "slide_template"
+
+
+class WorshipFieldBinding(StrEnum):
+    value = "value"
+    title = "title"
+    detail = "detail"
+    notes = "notes"
+    slide_template_key = "slideTemplateKey"
 
 
 class WorshipGenerationRule(StrEnum):
@@ -45,7 +48,7 @@ class WorshipSlide(CamelModel):
     id: str
     label: str
     lines: list[str] = Field(default_factory=list)
-    template_key: str = ""
+    slide_template_key: str = ""
     aspect_ratio: str = "16:9"
     notes: str = ""
 
@@ -58,36 +61,11 @@ class WorshipSectionCapabilities(CamelModel):
     can_remove: bool = False
 
 
-class WorshipSection(CamelModel):
-    id: str
-    order: int = Field(ge=1)
-    section_type: WorshipSectionType
-    title: str
-    detail: str = ""
-    role: str = ""
-    assignee_id: str | None = None
-    assignee_name: str | None = None
-    status: WorshipServiceStatus = WorshipServiceStatus.waiting
-    duration_minutes: int = Field(default=0, ge=0)
-    template_key: str = ""
-    notes: str = ""
-    content: dict[str, Any] = Field(default_factory=dict)
-    slides: list[WorshipSlide] = Field(default_factory=list)
-    capabilities: WorshipSectionCapabilities = Field(default_factory=WorshipSectionCapabilities)
-    updated_at: str
-
-    @field_validator("title", "detail", "role", "template_key", "notes", mode="before")
-    @classmethod
-    def normalize_optional_text(cls, value: str | None) -> str:
-        if value is None:
-            return ""
-        return value.strip()
-
-
 class WorshipTaskFieldSpec(CamelModel):
     key: str = Field(min_length=1)
     label: str = Field(min_length=1)
     field_type: WorshipFieldType
+    binding: WorshipFieldBinding = WorshipFieldBinding.value
     required: bool = True
     help_text: str = ""
 
@@ -108,6 +86,7 @@ class WorshipGuestAccess(CamelModel):
 class WorshipTask(CamelModel):
     id: str
     section_id: str
+    input_template_id: str = ""
     role: str = Field(min_length=1)
     scope: str = ""
     required_fields: list[WorshipTaskFieldSpec] = Field(default_factory=list)
@@ -117,7 +96,7 @@ class WorshipTask(CamelModel):
     guest_access: WorshipGuestAccess = Field(default_factory=WorshipGuestAccess)
     last_submitted_at: str | None = None
 
-    @field_validator("role", "scope", "tips")
+    @field_validator("input_template_id", "role", "scope", "tips")
     @classmethod
     def normalize_text(cls, value: str) -> str:
         return value.strip()
@@ -133,10 +112,105 @@ class WorshipReviewSummary(CamelModel):
     pending_task_count: int
 
 
-class WorshipTemplatePreset(CamelModel):
+class WorshipSectionTypeDefinition(CamelModel):
+    code: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    description: str = ""
+    workspace_bucket: WorshipWorkspaceBucket
+    default_title: str = ""
+    default_role: str = ""
+    default_duration_minutes: int = Field(default=0, ge=0)
+    default_due_offset_minutes: int = Field(default=0, ge=0)
+    default_input_template_id: str = ""
+    default_slide_template_key: str = ""
+    is_active: bool = True
+    sort_order: int = Field(default=0, ge=0)
+    usage_count: int = Field(default=0, ge=0)
+
+    @field_validator(
+        "code",
+        "label",
+        "description",
+        "default_title",
+        "default_role",
+        "default_input_template_id",
+        "default_slide_template_key",
+    )
+    @classmethod
+    def normalize_text(cls, value: str) -> str:
+        return value.strip()
+
+
+class WorshipSectionTypeDefinitionUpsert(CamelModel):
+    code: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    description: str = ""
+    workspace_bucket: WorshipWorkspaceBucket
+    default_title: str = ""
+    default_role: str = ""
+    default_duration_minutes: int = Field(default=0, ge=0)
+    default_due_offset_minutes: int = Field(default=0, ge=0)
+    default_input_template_id: str = ""
+    default_slide_template_key: str = ""
+    is_active: bool = True
+    sort_order: int = Field(default=0, ge=0)
+
+    @field_validator(
+        "code",
+        "label",
+        "description",
+        "default_title",
+        "default_role",
+        "default_input_template_id",
+        "default_slide_template_key",
+    )
+    @classmethod
+    def normalize_required_text(cls, value: str) -> str:
+        return value.strip()
+
+
+class WorshipInputTemplate(CamelModel):
+    id: str
+    label: str = Field(min_length=1)
+    description: str = ""
+    tips: str = ""
+    fields: list[WorshipTaskFieldSpec] = Field(default_factory=list)
+    is_active: bool = True
+    usage_count: int = Field(default=0, ge=0)
+    created_at: str
+    updated_at: str
+
+    @field_validator("id", "label", "description", "tips")
+    @classmethod
+    def normalize_text(cls, value: str) -> str:
+        return value.strip()
+
+
+class WorshipInputTemplateUpsert(CamelModel):
+    id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    description: str = ""
+    tips: str = ""
+    fields: list[WorshipTaskFieldSpec] = Field(default_factory=list)
+    is_active: bool = True
+
+    @field_validator("id", "label", "description", "tips")
+    @classmethod
+    def normalize_required_text(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed and value != "":
+            raise ValueError("value must not be blank")
+        return trimmed
+
+
+class WorshipSlideTemplate(CamelModel):
     key: str = Field(min_length=1)
     label: str = Field(min_length=1)
     description: str = ""
+    is_active: bool = True
+    usage_count: int = Field(default=0, ge=0)
+    created_at: str
+    updated_at: str
 
     @field_validator("key", "label", "description")
     @classmethod
@@ -144,37 +218,87 @@ class WorshipTemplatePreset(CamelModel):
         return value.strip()
 
 
+class WorshipSlideTemplateUpsert(CamelModel):
+    key: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    description: str = ""
+    is_active: bool = True
+
+    @field_validator("key", "label", "description")
+    @classmethod
+    def normalize_required_text(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed and value != "":
+            raise ValueError("value must not be blank")
+        return trimmed
+
+
 class WorshipTemplateSectionPreset(CamelModel):
     id: str
     order: int = Field(ge=1)
-    section_type: WorshipSectionType
+    section_type_code: str = Field(min_length=1)
     title: str = Field(min_length=1)
     detail: str = ""
     role: str = ""
     assignee_name: str | None = None
     duration_minutes: int = Field(default=0, ge=0)
-    template_key: str = ""
+    due_offset_minutes: int = Field(default=0, ge=0)
+    input_template_id: str = Field(min_length=1)
+    slide_template_key: str = ""
+    workspace_bucket: WorshipWorkspaceBucket
     notes: str = ""
     content: dict[str, Any] = Field(default_factory=dict)
 
-    @field_validator("id", "title", "detail", "role", "template_key", "notes")
+    @field_validator(
+        "id",
+        "section_type_code",
+        "title",
+        "detail",
+        "role",
+        "input_template_id",
+        "slide_template_key",
+        "notes",
+    )
     @classmethod
     def normalize_text(cls, value: str) -> str:
         return value.strip()
 
 
-class WorshipTaskPreset(CamelModel):
+class WorshipSection(CamelModel):
     id: str
-    role: str = Field(min_length=1)
-    scope: str = ""
-    section_ids: list[str] = Field(default_factory=list)
-    required_fields: list[WorshipTaskFieldSpec] = Field(default_factory=list)
-    due_offset_minutes: int = 0
-    tips: str = ""
+    order: int = Field(ge=1)
+    section_type_code: str = Field(min_length=1)
+    workspace_bucket: WorshipWorkspaceBucket
+    title: str
+    detail: str = ""
+    role: str = ""
+    assignee_id: str | None = None
+    assignee_name: str | None = None
+    status: WorshipServiceStatus = WorshipServiceStatus.waiting
+    duration_minutes: int = Field(default=0, ge=0)
+    due_offset_minutes: int = Field(default=0, ge=0)
+    input_template_id: str = ""
+    slide_template_key: str = ""
+    notes: str = ""
+    content: dict[str, Any] = Field(default_factory=dict)
+    slides: list[WorshipSlide] = Field(default_factory=list)
+    capabilities: WorshipSectionCapabilities = Field(default_factory=WorshipSectionCapabilities)
+    updated_at: str
 
-    @field_validator("id", "role", "scope", "tips")
+    @field_validator(
+        "section_type_code",
+        "title",
+        "detail",
+        "role",
+        "input_template_id",
+        "slide_template_key",
+        "notes",
+        mode="before",
+    )
     @classmethod
-    def normalize_text(cls, value: str) -> str:
+    def normalize_optional_text(cls, value: str | None) -> str:
+        if value is None:
+            return ""
         return value.strip()
 
 
@@ -185,8 +309,6 @@ class WorshipTemplate(CamelModel):
     start_time: str = Field(pattern=r"^\d{2}:\d{2}$")
     generation_rule: WorshipGenerationRule
     default_sections: list[WorshipTemplateSectionPreset] = Field(default_factory=list)
-    task_presets: list[WorshipTaskPreset] = Field(default_factory=list)
-    template_presets: list[WorshipTemplatePreset] = Field(default_factory=list)
     is_active: bool = True
     created_at: str
     updated_at: str
@@ -203,8 +325,6 @@ class WorshipTemplateUpsert(CamelModel):
     start_time: str = Field(pattern=r"^\d{2}:\d{2}$")
     generation_rule: WorshipGenerationRule
     default_sections: list[WorshipTemplateSectionPreset] = Field(default_factory=list)
-    task_presets: list[WorshipTaskPreset] = Field(default_factory=list)
-    template_presets: list[WorshipTemplatePreset] = Field(default_factory=list)
     is_active: bool = True
 
     @field_validator("service_kind", "display_name", "start_time")
@@ -304,14 +424,25 @@ class WorshipSectionUpdate(CamelModel):
     assignee_name: str | None = None
     status: WorshipServiceStatus | None = None
     duration_minutes: int | None = Field(default=None, ge=0)
-    template_key: str | None = None
+    due_offset_minutes: int | None = Field(default=None, ge=0)
+    input_template_id: str | None = None
+    slide_template_key: str | None = None
     notes: str | None = None
     content: dict[str, Any] | None = None
     slides: list[WorshipSlide] | None = None
     editor_values: dict[str, Any] | None = None
     mark_complete: bool | None = None
 
-    @field_validator("title", "detail", "role", "assignee_id", "assignee_name", "template_key", "notes")
+    @field_validator(
+        "title",
+        "detail",
+        "role",
+        "assignee_id",
+        "assignee_name",
+        "input_template_id",
+        "slide_template_key",
+        "notes",
+    )
     @classmethod
     def normalize_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -338,11 +469,11 @@ class WorshipSectionReorderRequest(CamelModel):
 class WorshipSectionCreate(CamelModel):
     version: int = Field(ge=1)
     after_section_id: str | None = None
-    section_type: WorshipSectionType
+    section_type_code: str = Field(min_length=1)
 
-    @field_validator("after_section_id")
+    @field_validator("after_section_id", "section_type_code")
     @classmethod
-    def normalize_after_section_id(cls, value: str | None) -> str | None:
+    def normalize_text(cls, value: str | None) -> str | None:
         if value is None:
             return None
         trimmed = value.strip()
@@ -393,9 +524,9 @@ class WorshipScriptureLookupResponse(CamelModel):
 
 class WorshipLyricsParseRequest(CamelModel):
     lyrics: str = Field(min_length=1)
-    template_key: str = ""
+    slide_template_key: str = ""
 
-    @field_validator("lyrics", "template_key")
+    @field_validator("lyrics", "slide_template_key")
     @classmethod
     def normalize_text(cls, value: str) -> str:
         return value.strip()
@@ -411,7 +542,7 @@ class WorshipReviewItem(CamelModel):
     title: str
     detail: str = ""
     status: WorshipServiceStatus
-    template_key: str = ""
+    slide_template_key: str = ""
     notes: str = ""
 
 

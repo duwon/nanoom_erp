@@ -224,7 +224,7 @@ async def parse_lyrics(
             service_id,
             section_id,
             payload.lyrics,
-            payload.template_key or "lyrics-16x9",
+            payload.slide_template_key or "lyrics-16x9",
         )
     except Exception as error:
         _raise_http_error(error)
