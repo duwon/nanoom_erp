@@ -10,8 +10,8 @@ export default function WorshipSongsPage() {
     <WorshipWorkQueue
       context={context}
       title="찬양 / 특송 입력"
-      description="찬양과 특송 순서만 따로 모아 빠르게 편집하고 곡을 추가하거나 공유합니다."
-      sectionTypes={["song", "special_song"]}
+      description="음악 버킷 순서를 모아 빠르게 편집하고 곡을 추가하거나 공유합니다."
+      workspaceBucket="music"
     />
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import type { WorshipSectionType, WorshipServiceDetail } from "@/lib/types";
+import type { WorshipServiceDetail } from "@/lib/types";
 
 export function buildWorshipHref(
   path: string,
@@ -35,7 +35,7 @@ export function buildWorshipSectionEditorHref(
 export function findNewSiblingSection(
   service: WorshipServiceDetail,
   afterSectionId: string,
-  sectionType: WorshipSectionType,
+  sectionTypeCode: string,
 ) {
   const afterSection = service.sections.find((section) => section.id === afterSectionId);
   if (!afterSection) {
@@ -43,7 +43,7 @@ export function findNewSiblingSection(
   }
   return (
     service.sections.find(
-      (section) => section.sectionType === sectionType && section.order === afterSection.order + 1,
+      (section) => section.sectionTypeCode === sectionTypeCode && section.order === afterSection.order + 1,
     ) ?? null
   );
 }

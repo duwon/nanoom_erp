@@ -4,6 +4,7 @@ import { use, useEffect, useRef, useState } from "react";
 
 import { getWorshipGuestInput, submitWorshipGuestInput } from "@/lib/api";
 import type { WorshipGuestTaskView } from "@/lib/types";
+import { WorshipTaskForm } from "@/components/worship/task-form";
 
 export default function WorshipGuestInputPage({
   params,
@@ -77,28 +78,16 @@ export default function WorshipGuestInputPage({
           </div>
         ) : null}
 
-        <div className="mt-6 grid gap-4">
-          {view?.requiredFields.map((field) => (
-            <label key={field.key} className="grid gap-2">
-              <span className="text-sm font-medium text-slate-700">{field.label}</span>
-              {field.fieldType === "textarea" || field.fieldType === "lyrics" ? (
-                <textarea
-                  rows={field.fieldType === "lyrics" ? 10 : 6}
-                  value={String(values[field.key] ?? "")}
-                  onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))}
-                  className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400"
-                />
-              ) : (
-                <input
-                  value={String(values[field.key] ?? "")}
-                  onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))}
-                  className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400"
-                />
-              )}
-              {field.helpText ? <span className="text-xs text-slate-500">{field.helpText}</span> : null}
-            </label>
-          ))}
-        </div>
+        {view ? (
+          <div className="mt-6">
+            <WorshipTaskForm
+              fields={view.requiredFields}
+              values={values}
+              onChange={(key, value) => setValues((current) => ({ ...current, [key]: value }))}
+              className="rounded-[20px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400"
+            />
+          </div>
+        ) : null}
 
         <button
           type="button"

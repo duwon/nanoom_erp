@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { issueWorshipGuestLink } from "@/lib/api";
-import type { WorshipSection, WorshipSectionType, WorshipStatus } from "@/lib/types";
+import type { WorshipSection, WorshipStatus, WorshipWorkspaceBucket } from "@/lib/types";
 import { buildWorshipSectionEditorHref } from "@/components/worship/navigation";
 import { WorshipWorkspaceShell, getWorshipStatusLabel, getWorshipStatusTheme, type WorshipShellContext } from "@/components/worship/workspace-shell";
 
@@ -12,7 +12,7 @@ type WorkQueueProps = {
   context: WorshipShellContext;
   title: string;
   description: string;
-  sectionTypes?: WorshipSectionType[];
+  workspaceBucket?: WorshipWorkspaceBucket;
 };
 
 type QueueFilter = "all" | WorshipStatus | "shared";
@@ -25,9 +25,9 @@ function getTaskMeta(context: WorshipShellContext, sectionId: string) {
 function isVisibleSection(
   section: WorshipSection,
   showAll: boolean,
-  sectionTypes?: WorshipSectionType[],
+  workspaceBucket?: WorshipWorkspaceBucket,
 ) {
-  if (sectionTypes?.length && !sectionTypes.includes(section.sectionType)) {
+  if (workspaceBucket && section.workspaceBucket !== workspaceBucket) {
     return false;
   }
   if (showAll) {
@@ -47,7 +47,7 @@ export function WorshipWorkQueue({
   context,
   title,
   description,
-  sectionTypes,
+  workspaceBucket,
 }: WorkQueueProps) {
   const service = context.service;
   const [message, setMessage] = useState("");
@@ -61,7 +61,7 @@ export function WorshipWorkQueue({
       return [];
     }
     return service.sections
-      .filter((section) => isVisibleSection(section, showAll && canSeeAll, sectionTypes))
+      .filter((section) => isVisibleSection(section, showAll && canSeeAll, workspaceBucket))
       .map((section) => ({ section, task: getTaskMeta(context, section.id) }))
       .filter((item) => item.task)
       .filter((item) => {
@@ -80,7 +80,7 @@ export function WorshipWorkQueue({
         }
         return left.section.order - right.section.order;
       });
-  }, [canSeeAll, context, filter, sectionTypes, service, showAll]);
+  }, [canSeeAll, context, filter, service, showAll, workspaceBucket]);
 
   return (
     <WorshipWorkspaceShell context={context} title={title} description={description}>
@@ -134,7 +134,7 @@ export function WorshipWorkQueue({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      {section.order}. {section.sectionType}
+                      {section.order}. {section.sectionTypeCode}
                     </p>
                     <h2 className="mt-1 truncate text-base font-semibold text-slate-900">{section.title}</h2>
                     <p className="mt-1 text-sm text-slate-600">

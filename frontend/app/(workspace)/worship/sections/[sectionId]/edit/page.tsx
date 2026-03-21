@@ -11,38 +11,46 @@ import {
   listActiveUsers,
   updateWorshipSection,
 } from "@/lib/api";
-import type { ActiveUserSummary, WorshipSection } from "@/lib/types";
+import type { ActiveUserSummary, WorshipSection, WorshipTaskFieldSpec } from "@/lib/types";
 import { buildWorshipHref, buildWorshipSectionEditorHref, findNewSiblingSection } from "@/components/worship/navigation";
+import { WorshipTaskForm } from "@/components/worship/task-form";
 import { useWorshipContext } from "@/components/worship/use-worship-context";
 import { WorshipWorkspaceShell, getWorshipStatusLabel, getWorshipStatusTheme } from "@/components/worship/workspace-shell";
 
-function createDraft(section: WorshipSection, values?: Record<string, unknown>) {
-  const current = (values ?? section.content) as Record<string, unknown>;
-  switch (section.sectionType) {
-    case "song":
-    case "special_song":
-      return {
-        songTitle: String(current.songTitle ?? section.title ?? ""),
-        lyrics: String(current.lyrics ?? ""),
-        templateKey: String(current.templateKey ?? section.templateKey ?? "lyrics-16x9"),
-      };
-    case "scripture":
-      return {
-        reference: String(current.reference ?? section.detail ?? ""),
-        templateKey: String(current.templateKey ?? section.templateKey ?? "scripture-main"),
-      };
-    case "message":
-      return {
-        notes: String(current.notes ?? section.notes ?? ""),
-        templateKey: String(current.templateKey ?? section.templateKey ?? "message-notes"),
-      };
-    default:
-      return {
-        title: String(current.title ?? section.title ?? ""),
-        body: String(current.body ?? section.detail ?? ""),
-        templateKey: String(current.templateKey ?? section.templateKey ?? "notice-card"),
-      };
+function normalizeFieldBinding(field: WorshipTaskFieldSpec) {
+  return field.binding ?? "value";
+}
+
+function buildInitialDraft(section: WorshipSection, fields: WorshipTaskFieldSpec[], taskValues?: Record<string, unknown>) {
+  const draft: Record<string, unknown> = {};
+  const source = taskValues ?? section.content ?? {};
+
+  for (const field of fields) {
+    const binding = normalizeFieldBinding(field);
+    if (source[field.key] != null) {
+      draft[field.key] = source[field.key];
+      continue;
+    }
+    if (binding === "title") {
+      draft[field.key] = section.title ?? "";
+      continue;
+    }
+    if (binding === "detail") {
+      draft[field.key] = section.detail ?? "";
+      continue;
+    }
+    if (binding === "notes") {
+      draft[field.key] = section.notes ?? "";
+      continue;
+    }
+    if (binding === "slideTemplateKey") {
+      draft[field.key] = section.slideTemplateKey ?? section.templateKey ?? "";
+      continue;
+    }
+    draft[field.key] = section.content?.[field.key] ?? "";
   }
+
+  return draft;
 }
 
 export default function WorshipSectionEditorPage({
@@ -71,13 +79,13 @@ export default function WorshipSectionEditorPage({
   const savedSnapshotRef = useRef("");
 
   useEffect(() => {
-    if (!section) {
+    if (!section || !task) {
       return;
     }
-    const nextDraft = createDraft(section, task?.values);
+    const nextDraft = buildInitialDraft(section, task.requiredFields, task.values);
     setDraft(nextDraft);
     savedSnapshotRef.current = JSON.stringify(nextDraft);
-  }, [section, task?.lastSubmittedAt, task?.values]);
+  }, [section, task]);
 
   useEffect(() => {
     if (!section?.capabilities.canAssign) {
@@ -139,11 +147,7 @@ export default function WorshipSectionEditorPage({
 
   if (!section || !task || !service) {
     return (
-      <WorshipWorkspaceShell
-        context={context}
-        title="섹션 편집"
-        description="선택한 예배 순서를 편집합니다."
-      >
+      <WorshipWorkspaceShell context={context} title="섹션 편집" description="선택한 예배 순서를 편집합니다.">
         <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
           섹션을 찾을 수 없습니다.
         </div>
@@ -155,14 +159,14 @@ export default function WorshipSectionEditorPage({
     <WorshipWorkspaceShell
       context={context}
       title={section.title}
-      description="예배 순서 입력, 담당자 지정, 공유 링크 발급을 한 화면에서 처리합니다."
+      description="예배 순서 입력, 담당자 지정, 공유 링크 발급을 이 화면에서 처리합니다."
     >
       <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
         <article className="panel rounded-[24px] p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                {section.order}. {section.sectionType}
+                {section.order}. {section.sectionTypeCode}
               </p>
               <h2 className="mt-1 text-xl font-semibold text-slate-900">{section.title}</h2>
               <p className="mt-1 text-sm text-slate-600">{section.assigneeName || section.role || "담당 미지정"}</p>
@@ -198,7 +202,7 @@ export default function WorshipSectionEditorPage({
                   }}
                   className="rounded-[18px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400"
                 >
-                  <option value="">미배정</option>
+                  <option value="">미지정</option>
                   {assignOptions.map((item) => (
                     <option key={item.id} value={item.id}>
                       {(item.name || item.id) + (item.department ? ` / ${item.department}` : "")}
@@ -209,82 +213,11 @@ export default function WorshipSectionEditorPage({
               </label>
             ) : null}
 
-            {(section.sectionType === "song" || section.sectionType === "special_song") && (
-              <>
-                <label className="grid gap-2">
-                  <span className="text-sm font-medium text-slate-700">곡 제목</span>
-                  <input
-                    value={String(draft.songTitle ?? "")}
-                    onChange={(event) => setDraft((current) => ({ ...current, songTitle: event.target.value }))}
-                    className="rounded-[18px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400"
-                  />
-                </label>
-                <label className="grid gap-2">
-                  <span className="text-sm font-medium text-slate-700">가사</span>
-                  <textarea
-                    rows={12}
-                    value={String(draft.lyrics ?? "")}
-                    onChange={(event) => setDraft((current) => ({ ...current, lyrics: event.target.value }))}
-                    className="rounded-[18px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400"
-                  />
-                </label>
-              </>
-            )}
-
-            {section.sectionType === "scripture" && (
-              <label className="grid gap-2">
-                <span className="text-sm font-medium text-slate-700">본문</span>
-                <input
-                  value={String(draft.reference ?? "")}
-                  onChange={(event) => setDraft((current) => ({ ...current, reference: event.target.value }))}
-                  placeholder="요한복음 3:16-17"
-                  className="rounded-[18px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400"
-                />
-              </label>
-            )}
-
-            {section.sectionType === "message" && (
-              <label className="grid gap-2">
-                <span className="text-sm font-medium text-slate-700">말씀 메모</span>
-                <textarea
-                  rows={10}
-                  value={String(draft.notes ?? "")}
-                  onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))}
-                  className="rounded-[18px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400"
-                />
-              </label>
-            )}
-
-            {(section.sectionType === "notice" || section.sectionType === "media") && (
-              <>
-                <label className="grid gap-2">
-                  <span className="text-sm font-medium text-slate-700">제목</span>
-                  <input
-                    value={String(draft.title ?? "")}
-                    onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
-                    className="rounded-[18px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400"
-                  />
-                </label>
-                <label className="grid gap-2">
-                  <span className="text-sm font-medium text-slate-700">내용</span>
-                  <textarea
-                    rows={8}
-                    value={String(draft.body ?? "")}
-                    onChange={(event) => setDraft((current) => ({ ...current, body: event.target.value }))}
-                    className="rounded-[18px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400"
-                  />
-                </label>
-              </>
-            )}
-
-            <label className="grid gap-2">
-              <span className="text-sm font-medium text-slate-700">템플릿</span>
-              <input
-                value={String(draft.templateKey ?? "")}
-                onChange={(event) => setDraft((current) => ({ ...current, templateKey: event.target.value }))}
-                className="rounded-[18px] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-emerald-400"
-              />
-            </label>
+            <WorshipTaskForm
+              fields={task.requiredFields}
+              values={draft}
+              onChange={(key, value) => setDraft((current) => ({ ...current, [key]: value }))}
+            />
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -307,7 +240,7 @@ export default function WorshipSectionEditorPage({
               </button>
             ) : null}
 
-            {section.capabilities.canAddSiblingSong ? (
+            {section.capabilities.canAddSiblingSong && section.workspaceBucket === "music" ? (
               <button
                 type="button"
                 onClick={async () => {
@@ -315,17 +248,17 @@ export default function WorshipSectionEditorPage({
                     const nextService = await addWorshipSection(service.id, {
                       version: service.version,
                       afterSectionId: section.id,
-                      sectionType: section.sectionType,
+                      sectionTypeCode: section.sectionTypeCode,
                     });
                     context.setService(nextService);
-                    const nextSection = findNewSiblingSection(nextService, section.id, section.sectionType);
+                    const nextSection = findNewSiblingSection(nextService, section.id, section.sectionTypeCode);
                     if (!nextSection) {
-                      setMessage("새 곡은 추가되었지만 편집 화면으로 이동하지 못했습니다.");
+                      setMessage("다음 음악 순서를 찾지 못했습니다.");
                       return;
                     }
                     router.push(buildWorshipSectionEditorHref(nextSection.id, context.anchorDate, nextService.id));
                   } catch (error) {
-                    setMessage(error instanceof Error ? error.message : "곡 추가에 실패했습니다.");
+                    setMessage(error instanceof Error ? error.message : "음악 순서 추가에 실패했습니다.");
                   }
                 }}
                 className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
@@ -334,7 +267,7 @@ export default function WorshipSectionEditorPage({
               </button>
             ) : null}
 
-            {section.capabilities.canRemove ? (
+            {section.capabilities.canRemove && section.workspaceBucket === "music" ? (
               <button
                 type="button"
                 onClick={async () => {
@@ -372,7 +305,7 @@ export default function WorshipSectionEditorPage({
               href={buildWorshipHref("/worship/assignees", context.anchorDate, context.serviceId)}
               className="text-sm font-medium text-emerald-700"
             >
-              작업함으로 돌아가기
+              작업 목록으로 돌아가기
             </Link>
           </div>
         </article>
@@ -382,17 +315,18 @@ export default function WorshipSectionEditorPage({
           <div className="mt-4 rounded-[24px] bg-slate-950 px-5 py-5 text-white">
             <p className="text-sm font-medium text-emerald-300">{section.title}</p>
             <div className="mt-4 grid gap-3">
-              {(section.slides.length ? section.slides : []).map((slide) => (
-                <div key={slide.id} className="rounded-[18px] border border-white/10 bg-white/5 px-4 py-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{slide.label}</p>
-                  <p className="mt-2 whitespace-pre-wrap text-lg leading-8">{slide.lines.join("\n")}</p>
-                </div>
-              ))}
-              {!section.slides.length ? (
+              {section.slides.length ? (
+                section.slides.map((slide) => (
+                  <div key={slide.id} className="rounded-[18px] border border-white/10 bg-white/5 px-4 py-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{slide.label}</p>
+                    <p className="mt-2 whitespace-pre-wrap text-lg leading-8">{slide.lines.join("\n")}</p>
+                  </div>
+                ))
+              ) : (
                 <div className="rounded-[18px] border border-dashed border-white/10 px-4 py-8 text-sm text-slate-400">
-                  저장 후 슬라이드 미리보기가 여기에 표시됩니다.
+                  저장하면 슬라이드 미리보기가 여기에 표시됩니다.
                 </div>
-              ) : null}
+              )}
             </div>
           </div>
         </article>

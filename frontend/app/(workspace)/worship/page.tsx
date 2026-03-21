@@ -65,7 +65,7 @@ export default function WorshipHomePage() {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                          {section.order}. {section.sectionType}
+                          {section.order}. {section.sectionTypeCode}
                         </p>
                         <h3 className="mt-1 truncate text-base font-semibold text-slate-900">{section.title}</h3>
                         <p className="mt-1 line-clamp-2 text-sm text-slate-600">
@@ -91,10 +91,10 @@ export default function WorshipHomePage() {
                                 const nextService = await addWorshipSection(service.id, {
                                   version: service.version,
                                   afterSectionId: section.id,
-                                  sectionType: "song",
+                                  sectionTypeCode: section.sectionTypeCode,
                                 });
                                 context.setService(nextService);
-                                const nextSection = findNewSiblingSection(nextService, section.id, "song");
+                                const nextSection = findNewSiblingSection(nextService, section.id, section.sectionTypeCode);
                                 if (!nextSection) {
                                   setActionMessage("찬양을 추가했지만 새 편집 화면으로 이동하지 못했습니다.");
                                   return;

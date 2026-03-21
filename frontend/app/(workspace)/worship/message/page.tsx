@@ -9,9 +9,9 @@ export default function WorshipMessagePage() {
   return (
     <WorshipWorkQueue
       context={context}
-      title="성경 / 말씀 입력"
-      description="본문, 말씀, 공지, 미디어 순서를 같은 작업 큐에서 필터링해 편집합니다."
-      sectionTypes={["scripture", "message", "notice", "media"]}
+      title="본문 / 메시지 입력"
+      description="콘텐츠 버킷 순서를 모아 본문, 기도문, 공지, 메시지를 같은 큐에서 관리합니다."
+      workspaceBucket="content"
     />
   );
 }
