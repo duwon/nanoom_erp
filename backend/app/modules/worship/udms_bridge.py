@@ -97,6 +97,34 @@ class WorshipUdmsBridge:
             "section_refs": self._section_refs(service, section_doc_ids),
         }
 
+    def _section_body(self, section: dict[str, Any]) -> str:
+        content = section.get("content") or {}
+        type_code = section.get("section_type_code", "")
+        if type_code in ("song", "special_song"):
+            lyrics = content.get("lyrics") or content.get("song_lyrics") or ""
+            if lyrics:
+                lines = [line.strip() for line in lyrics.splitlines() if line.strip()]
+                return "\n".join(lines[:6])
+            return content.get("song_title") or section.get("title", "")
+        if type_code == "scripture":
+            text = content.get("text") or content.get("scripture_text") or ""
+            ref = content.get("ref") or content.get("scripture_ref") or ""
+            if text:
+                return f"{ref}\n{text}".strip() if ref else text
+            return ref or section.get("title", "")
+        if type_code == "message":
+            notes = content.get("notes") or content.get("sermon_notes") or ""
+            title = content.get("title") or content.get("sermon_title") or section.get("title", "")
+            if notes:
+                lines = [line.strip() for line in notes.splitlines() if line.strip()]
+                return f"{title}\n" + "\n".join(lines[:4]) if title else "\n".join(lines[:4])
+            return title
+        # fallback: any text-like value in content
+        for val in content.values():
+            if isinstance(val, str) and val.strip():
+                return val[:400]
+        return section.get("detail") or section.get("title", "")
+
     def _section_module_data(self, service: dict[str, Any], section: dict[str, Any]) -> dict[str, Any]:
         return {
             "service_id": service["id"],
@@ -109,6 +137,7 @@ class WorshipUdmsBridge:
                 "id": section.get("assignee_id"),
                 "name": section.get("assignee_name"),
             },
+            "content_editor_id": section.get("content_editor_id"),
             "status": section.get("status", ""),
             "duration_minutes": section.get("duration_minutes", 0),
             "slide_template_key": section.get("slide_template_key", ""),
@@ -126,6 +155,7 @@ class WorshipUdmsBridge:
         *,
         document_id: str | None,
         actor_id: str,
+        author_id: str | None = None,
         target_type: str,
         target_id: str,
         title: str,
@@ -133,6 +163,7 @@ class WorshipUdmsBridge:
         module_data: dict[str, Any],
         change_log: str,
     ) -> dict[str, Any]:
+        resolved_author_id = author_id or actor_id
         creation_payload = {
             "title": title,
             "body": body,
@@ -142,7 +173,7 @@ class WorshipUdmsBridge:
             "target_id": target_id,
             "deep_link": f"/worship?serviceId={target_id}",
             "change_log": change_log,
-            "actor_id": actor_id,
+            "actor_id": resolved_author_id,
             "category": "Worship",
             "tags": ["worship", target_type.lower()],
         }
@@ -152,6 +183,7 @@ class WorshipUdmsBridge:
             "editor_type": DocumentEditorType.tiptap.value,
             "module_data": module_data,
             "actor_id": actor_id,
+            "author_id": resolved_author_id,
             "category": "Worship",
             "tags": ["worship", target_type.lower()],
         }
@@ -181,10 +213,11 @@ class WorshipUdmsBridge:
             section_doc = await self._upsert_document(
                 document_id=section_doc_ids.get(section["id"]),
                 actor_id=actor_id,
+                author_id=section.get("content_editor_id"),
                 target_type=_section_target_type(section["section_type_code"]),
                 target_id=next_service["id"],
                 title=section["title"],
-                body=section.get("detail") or section["title"],
+                body=self._section_body(section),
                 module_data=self._section_module_data(next_service, section),
                 change_log=change_log,
             )

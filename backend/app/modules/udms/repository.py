@@ -425,7 +425,7 @@ class UdmsRepository(Protocol):
 
     async def replace_target_policies(self, target_type: str, target_id: str, rules: list[dict[str, Any]]) -> list[dict[str, Any]]: ...
 
-    async def list_documents(self, target_type: str | None = None, target_id: str | None = None, status: str | None = None) -> list[dict[str, Any]]: ...
+    async def list_documents(self, target_type: str | None = None, target_id: str | None = None, status: str | None = None, author_id: str | None = None) -> list[dict[str, Any]]: ...
 
     async def get_document(self, document_id: str) -> dict[str, Any]: ...
 
@@ -628,7 +628,7 @@ class MongoUdmsRepository:
             await self.target_policies.insert_many(deepcopy(rows))
         return rows
 
-    async def list_documents(self, target_type: str | None = None, target_id: str | None = None, status: str | None = None) -> list[dict[str, Any]]:
+    async def list_documents(self, target_type: str | None = None, target_id: str | None = None, status: str | None = None, author_id: str | None = None) -> list[dict[str, Any]]:
         query: dict[str, Any] = {"metadata.is_deleted": False}
         if target_type:
             query["link.target_type"] = target_type
@@ -636,6 +636,8 @@ class MongoUdmsRepository:
             query["link.target_id"] = target_id
         if status:
             query["state.status"] = status
+        if author_id:
+            query["header.author_id"] = author_id
         return await self.documents.find(query, {"_id": False}).sort("metadata.updated_at", -1).to_list(None)
 
     async def get_document(self, document_id: str) -> dict[str, Any]:
@@ -744,6 +746,8 @@ class MongoUdmsRepository:
             next_header["category"] = payload["category"]
         if payload.get("tags") is not None:
             next_header["tags"] = payload["tags"]
+        if payload.get("author_id") is not None:
+            next_header["author_id"] = payload["author_id"]
         next_module_data = deepcopy(base_revision.get("module_data", {}))
         if payload.get("module_data") is not None:
             next_module_data = deepcopy(payload["module_data"])
@@ -1135,7 +1139,7 @@ class InMemoryUdmsRepository:
             created.append(deepcopy(item))
         return created
 
-    async def list_documents(self, target_type: str | None = None, target_id: str | None = None, status: str | None = None) -> list[dict[str, Any]]:
+    async def list_documents(self, target_type: str | None = None, target_id: str | None = None, status: str | None = None, author_id: str | None = None) -> list[dict[str, Any]]:
         rows = [row for row in self.documents.values() if not row["metadata"].get("is_deleted", False)]
         if target_type:
             rows = [row for row in rows if row["link"]["target_type"] == target_type]
@@ -1143,6 +1147,8 @@ class InMemoryUdmsRepository:
             rows = [row for row in rows if row["link"]["target_id"] == target_id]
         if status:
             rows = [row for row in rows if row["state"]["status"] == status]
+        if author_id:
+            rows = [row for row in rows if row["header"].get("author_id") == author_id]
         rows.sort(key=lambda row: row["metadata"]["updated_at"], reverse=True)
         return [deepcopy(row) for row in rows]
 
@@ -1262,6 +1268,8 @@ class InMemoryUdmsRepository:
             next_header["category"] = payload["category"]
         if payload.get("tags") is not None:
             next_header["tags"] = payload["tags"]
+        if payload.get("author_id") is not None:
+            next_header["author_id"] = payload["author_id"]
         next_module_data = deepcopy(base_revision.get("module_data", {}))
         if payload.get("module_data") is not None:
             next_module_data = deepcopy(payload["module_data"])

@@ -33,15 +33,18 @@ async def list_documents(
     targetId: str | None = None,
     status_value: str | None = Query(default=None, alias="status"),
     q: str | None = None,
+    myDocuments: bool = False,
     current_user: dict = Depends(get_current_user),
     service: UdmsService = Depends(get_udms_service),
 ) -> list[DocumentSummary]:
+    author_id = current_user["id"] if myDocuments else None
     documents = await service.list_documents(
         current_user,
         target_type=targetType,
         target_id=targetId,
         status=status_value,
         query=q,
+        author_id=author_id,
     )
     return [DocumentSummary.model_validate(document) for document in documents]
 

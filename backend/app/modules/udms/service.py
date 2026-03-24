@@ -349,10 +349,11 @@ class UdmsService:
         target_id: str | None = None,
         status: str | None = None,
         query: str | None = None,
+        author_id: str | None = None,
     ) -> list[dict[str, Any]]:
         if target_type:
             await self._ensure_target_registered(target_type)
-        documents = await self.repository.list_documents(target_type=target_type, target_id=target_id, status=status)
+        documents = await self.repository.list_documents(target_type=target_type, target_id=target_id, status=status, author_id=author_id)
         visible: list[dict[str, Any]] = []
         lowered = (query or "").strip().lower()
         for root in documents:

@@ -346,6 +346,7 @@ export async function listDocuments(params?: {
   targetId?: string;
   status?: DocumentStatus;
   q?: string;
+  myDocuments?: boolean;
 }): Promise<DocumentSummary[]> {
   const url = new URL(`${getApiV1BaseUrl()}/udms/docs`);
   if (params?.targetType) {
@@ -359,6 +360,9 @@ export async function listDocuments(params?: {
   }
   if (params?.q) {
     url.searchParams.set("q", params.q);
+  }
+  if (params?.myDocuments) {
+    url.searchParams.set("myDocuments", "true");
   }
   const response = await fetch(url.toString(), {
     cache: "no-store",

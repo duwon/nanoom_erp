@@ -33,7 +33,7 @@ def register_worship_targets(registry: TargetRegistry, repository: WorshipReposi
             parent_validator=validate_worship_service,
             policy_resolver="worship.content.policy",
             document_title_hint="Worship content document",
-            is_enabled=False,
+            is_enabled=True,
         ),
     )
     registry.register_target(
@@ -47,6 +47,6 @@ def register_worship_targets(registry: TargetRegistry, repository: WorshipReposi
             parent_validator=validate_worship_service,
             policy_resolver="worship.subtitle.policy",
             document_title_hint="Subtitle document",
-            is_enabled=False,
+            is_enabled=True,
         ),
     )

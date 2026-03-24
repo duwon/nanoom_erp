@@ -445,6 +445,17 @@ class WorshipService:
                 return False
         return True
 
+    def _section_binding(self, field_type: str) -> str:
+        """field_type에서 섹션 필드 바인딩을 자동 결정합니다."""
+        return {
+            WorshipFieldType.title: "title",
+            WorshipFieldType.text: "title",      # 하위 호환
+            WorshipFieldType.song_search: "title",
+            WorshipFieldType.detail: "detail",
+            WorshipFieldType.scripture: "detail",
+            WorshipFieldType.notes: "notes",
+        }.get(field_type, "none")  # type: ignore[arg-type]
+
     async def _apply_values_to_section(self, section: dict[str, Any], task: dict[str, Any], values: dict[str, Any], *, mark_complete: bool) -> dict[str, Any]:
         values = self._filtered_values(task, values)
         field_map = self._field_map(task)
@@ -452,16 +463,15 @@ class WorshipService:
         section["content"].update(values)
         for key, value in values.items():
             field = field_map[key]
+            field_type = field.get("field_type", "")
             text = str(value).strip() if isinstance(value, str) else value
-            binding = field.get("binding", "value")
+            binding = self._section_binding(field_type)
             if binding == "title" and isinstance(text, str):
                 section["title"] = text
             elif binding == "detail" and isinstance(text, str):
                 section["detail"] = text
             elif binding == "notes" and isinstance(text, str):
                 section["notes"] = text
-            elif binding == "slideTemplateKey" and isinstance(text, str):
-                section["slide_template_key"] = text
         for key, value in values.items():
             field = field_map[key]
             if not isinstance(value, str):
@@ -582,9 +592,12 @@ class WorshipService:
             self._ensure_section_access(user, section, action="assign")
         else:
             self._ensure_section_access(user, section, action="edit")
+        content_updated = False
         for key in ("title", "detail", "role", "assignee_id", "assignee_name", "status", "duration_minutes", "due_offset_minutes", "input_template_id", "slide_template_key", "notes", "content", "slides"):
             if key in payload and payload[key] is not None:
                 section[key] = payload[key]
+                if key in ("content", "slides"):
+                    content_updated = True
         if payload.get("editor_values") is not None:
             task = self._find_task_for_section(service, section_id)
             task["values"] = await self._apply_values_to_section(
@@ -594,6 +607,9 @@ class WorshipService:
                 mark_complete=bool(payload.get("mark_complete")),
             )
             task["last_submitted_at"] = iso_now()
+            content_updated = True
+        if content_updated:
+            section["content_editor_id"] = user["id"]
         service["metadata"]["updated_at"] = iso_now()
         service = self._sync_service(service)
         if self.udms_bridge is not None:
@@ -749,12 +765,7 @@ class WorshipService:
 
     def _guest_expires_at(self, due_at: str | None) -> str:
         now = datetime.now(self.timezone)
-        limit = now + timedelta(hours=72)
-        if due_at:
-            due_dt = datetime.fromisoformat(due_at)
-            if due_dt < limit:
-                limit = due_dt
-        return limit.isoformat()
+        return (now + timedelta(days=7)).isoformat()
 
     async def issue_guest_link(self, user: dict[str, Any], service_id: str, task_id: str) -> WorshipGuestLinkResponse:
         service = await self.repository.get_service(service_id)
@@ -764,6 +775,7 @@ class WorshipService:
         token = secrets.token_urlsafe(24)
         task["guest_access"] = {
             "token_hash": self._hash_token(token),
+            "issued_by_id": user["id"],
             "issued_at": iso_now(),
             "expires_at": self._guest_expires_at(task.get("due_at")),
             "revoked_at": None,
@@ -832,12 +844,14 @@ class WorshipService:
         values = await self._apply_values_to_section(section, task, payload.values, mark_complete=payload.mark_complete)
         task["values"] = values
         task["last_submitted_at"] = iso_now()
+        issued_by_id = guest_access.get("issued_by_id") or "system"
+        section["content_editor_id"] = issued_by_id
         service["metadata"]["updated_at"] = iso_now()
         service = self._sync_service(service)
         if self.udms_bridge is not None:
             service = await self.udms_bridge.sync_service_documents(
                 service,
-                actor_id="system",
+                actor_id=issued_by_id,
                 change_log=f"Submit guest input for {task['id']}",
                 create_policies=False,
             )
