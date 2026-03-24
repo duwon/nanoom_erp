@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { listWorshipSlideTemplates, lookupWorshipSongs } from "@/lib/api";
+import { lookupWorshipSongs } from "@/lib/api";
 import type {
-  WorshipSlideTemplate,
   WorshipSongLookupItem,
   WorshipTaskFieldSpec,
 } from "@/lib/types";
@@ -91,21 +90,29 @@ function WorshipTaskFieldRenderer({
   field,
   value,
   onChange,
-  slideTemplates,
   className,
 }: {
   field: WorshipTaskFieldSpec;
   value: string;
   onChange: (value: string) => void;
-  slideTemplates: WorshipSlideTemplate[];
   className?: string;
 }) {
   switch (field.fieldType) {
-    case "textarea":
     case "lyrics":
       return (
         <textarea
-          rows={field.fieldType === "lyrics" ? 10 : 6}
+          rows={10}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className={inputClassName(className)}
+        />
+      );
+    case "detail":
+    case "notes":
+    case "textarea":
+      return (
+        <textarea
+          rows={4}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           className={inputClassName(className)}
@@ -120,21 +127,6 @@ function WorshipTaskFieldRenderer({
           className={inputClassName(className)}
         />
       );
-    case "slide_template":
-      return (
-        <select
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className={inputClassName(className)}
-        >
-          <option value="">템플릿 없음</option>
-          {slideTemplates.map((item) => (
-            <option key={item.key} value={item.key}>
-              {item.label} ({item.key})
-            </option>
-          ))}
-        </select>
-      );
     case "song_search":
       return (
         <WorshipSongSearchField
@@ -145,6 +137,7 @@ function WorshipTaskFieldRenderer({
         />
       );
     default:
+      // title, text, 기타
       return (
         <input
           value={value}
@@ -161,38 +154,9 @@ export function WorshipTaskForm({
   onChange,
   className,
 }: WorshipTaskFormProps) {
-  const [slideTemplates, setSlideTemplates] = useState<WorshipSlideTemplate[]>([]);
-
-  useEffect(() => {
-    let active = true;
-    void listWorshipSlideTemplates()
-      .then((items) => {
-        if (active) {
-          setSlideTemplates(items.filter((item) => item.isActive));
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setSlideTemplates([]);
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const normalizedFields = useMemo(
-    () =>
-      fields.map((field) => ({
-        ...field,
-        binding: field.binding ?? "value",
-      })),
-    [fields],
-  );
-
   return (
     <div className="grid gap-3">
-      {normalizedFields.map((field) => {
+      {fields.map((field) => {
         const value = normalizeString(values[field.key]);
         return (
           <label key={field.key} className="grid gap-2">
@@ -204,7 +168,6 @@ export function WorshipTaskForm({
               field={field}
               value={value}
               onChange={(nextValue) => onChange(field.key, nextValue)}
-              slideTemplates={slideTemplates}
               className={className}
             />
             {field.helpText && field.fieldType !== "song_search" ? (

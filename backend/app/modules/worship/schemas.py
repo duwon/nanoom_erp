@@ -21,15 +21,21 @@ class WorshipWorkspaceBucket(StrEnum):
 
 
 class WorshipFieldType(StrEnum):
+    # 섹션 필드에 직접 연결되는 타입
+    title = "title"              # section.title (한 줄 텍스트)
+    song_search = "song_search"  # section.title (곡 검색 UI)
+    detail = "detail"            # section.detail (여러 줄 텍스트)
+    notes = "notes"              # section.notes (여러 줄 텍스트)
+    # 컨텐츠 전용 타입 (section.content에만 저장)
+    lyrics = "lyrics"            # 슬라이드 자동 생성 (가사 입력)
+    scripture = "scripture"      # 성경 조회 + 슬라이드 생성, section.detail에도 저장
+    textarea = "textarea"        # 일반 여러 줄 텍스트
+    # 하위 호환 (기존 데이터용, title과 동일하게 처리)
     text = "text"
-    textarea = "textarea"
-    song_search = "song_search"
-    lyrics = "lyrics"
-    scripture = "scripture"
-    slide_template = "slide_template"
 
 
 class WorshipFieldBinding(StrEnum):
+    """Deprecated: field_type에서 바인딩이 자동 결정됩니다. 기존 데이터 호환용으로만 유지."""
     value = "value"
     title = "title"
     detail = "detail"
@@ -65,7 +71,7 @@ class WorshipTaskFieldSpec(CamelModel):
     key: str = Field(min_length=1)
     label: str = Field(min_length=1)
     field_type: WorshipFieldType
-    binding: WorshipFieldBinding = WorshipFieldBinding.value
+    binding: WorshipFieldBinding | None = None  # deprecated, field_type으로 자동 결정
     required: bool = True
     help_text: str = ""
 

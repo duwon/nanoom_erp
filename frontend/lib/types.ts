@@ -60,14 +60,14 @@ export type WorshipStatus = "waiting" | "progress" | "review" | "complete";
 export type WorshipSectionType = string;
 export type WorshipWorkspaceBucket = "music" | "content";
 export type WorshipFieldType =
-  | "text"
-  | "textarea"
-  | "song_search"
-  | "lyrics"
-  | "scripture"
-  | "template"
-  | "slide_template";
-export type WorshipFieldBinding = "value" | "title" | "detail" | "notes" | "slideTemplateKey";
+  | "title"        // section.title (한 줄 텍스트)
+  | "song_search"  // section.title (곡 검색 UI)
+  | "detail"       // section.detail (여러 줄 텍스트)
+  | "notes"        // section.notes (여러 줄 텍스트)
+  | "lyrics"       // 슬라이드 자동 생성 (가사 입력)
+  | "scripture"    // 성경 조회 + 슬라이드 생성, section.detail에도 저장
+  | "textarea"     // 일반 여러 줄 텍스트 (content만 저장)
+  | "text";        // 하위 호환 (title과 동일하게 처리)
 export type WorshipGenerationRule = "daily" | "sunday" | "wednesday" | "friday";
 
 export type WorshipSlide = {
@@ -116,7 +116,6 @@ export type WorshipTaskFieldSpec = {
   key: string;
   label: string;
   fieldType: WorshipFieldType;
-  binding?: WorshipFieldBinding;
   required: boolean;
   helpText: string;
 };
