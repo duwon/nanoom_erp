@@ -61,7 +61,7 @@ export default function UdmsApprovalsPage() {
         </div>
       </section>
 
-      <DocumentContainer targetType="Approval" targetId="" title="Approval-bound Documents" />
+      <DocumentContainer targetType="Approval" targetId="" />
     </ModulePage>
   );
 }

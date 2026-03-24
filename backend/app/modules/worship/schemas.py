@@ -75,6 +75,18 @@ class WorshipTaskFieldSpec(CamelModel):
     required: bool = True
     help_text: str = ""
 
+    @field_validator("field_type", mode="before")
+    @classmethod
+    def normalize_field_type(cls, value: object) -> object:
+        """기존 데이터 호환: 더 이상 지원하지 않는 field_type을 적절한 값으로 변환."""
+        deprecated: dict[str, str] = {
+            "slide_template": "text",
+            "template": "text",
+        }
+        if isinstance(value, str):
+            return deprecated.get(value, value)
+        return value
+
     @field_validator("key", "label", "help_text")
     @classmethod
     def normalize_required_text(cls, value: str) -> str:

@@ -276,6 +276,24 @@ const NAV_MODULES: NavModule[] = [
             label: "예배 템플릿",
             description: "예배 템플릿과 기본 구성을 관리합니다.",
           },
+          {
+            id: "admin-worship-section-types",
+            href: "/admin/worship-section-types",
+            label: "순서 타입",
+            description: "예배 순서 타입과 기본값을 관리합니다.",
+          },
+          {
+            id: "admin-worship-input-templates",
+            href: "/admin/worship-input-templates",
+            label: "입력 템플릿",
+            description: "입력 필드 스키마와 안내 문구를 관리합니다.",
+          },
+          {
+            id: "admin-worship-slide-templates",
+            href: "/admin/worship-slide-templates",
+            label: "슬라이드 템플릿",
+            description: "슬라이드 템플릿 키와 설명을 관리합니다.",
+          },
         ],
       },
     ],
@@ -629,7 +647,7 @@ export function AuthenticatedShell({
                 </button>
               </div>
 
-              <div className="mt-5 rounded-[20px] border border-slate-200 bg-slate-50 px-3 py-3 lg:rounded-[24px] lg:px-4 lg:py-4">
+              <div className="mt-5 rounded-[20px] border border-slate-200 bg-slate-50 px-3 py-3 lg:hidden">
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white lg:h-11 lg:w-11">
                     {userInitial}
@@ -724,7 +742,7 @@ export function AuthenticatedShell({
                   </div>
                 </div>
 
-                <div className="hidden items-center gap-2 md:flex">
+                <div className="hidden items-center gap-2 lg:flex">
                   {showDevRoleSwitch ? (
                     <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white p-1">
                       <button

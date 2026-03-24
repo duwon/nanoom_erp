@@ -4,16 +4,33 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { listDocuments } from "@/lib/api";
-import type { DocumentSummary, DocumentTargetType } from "@/lib/types";
+import type { DocumentStatus, DocumentSummary, DocumentTargetType } from "@/lib/types";
 import { buildTargetDeepLink, useTargetCatalog } from "@/components/udms/use-target-catalog";
+
+const statusLabels: Record<DocumentStatus, string> = {
+  draft: "초안",
+  published: "게시됨",
+  locked: "잠김",
+  archived: "보관됨",
+};
+
+const statusStyles: Record<DocumentStatus, string> = {
+  draft: "bg-slate-100 text-slate-600",
+  published: "bg-green-100 text-green-700",
+  locked: "bg-amber-100 text-amber-700",
+  archived: "bg-rose-100 text-rose-700",
+};
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
+}
 
 type DocumentContainerProps = {
   targetType: DocumentTargetType;
   targetId: string;
-  title: string;
 };
 
-export function DocumentContainer({ targetType, targetId, title }: DocumentContainerProps) {
+export function DocumentContainer({ targetType, targetId }: DocumentContainerProps) {
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [message, setMessage] = useState("");
   const { getTargetDescriptor, message: catalogMessage } = useTargetCatalog();
@@ -40,39 +57,56 @@ export function DocumentContainer({ targetType, targetId, title }: DocumentConta
   }, [targetId, targetType]);
 
   return (
-    <section className="panel rounded-[28px] p-5">
-      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-        {displayLabel} / {targetId || "all"}
-      </p>
-      <h2 className="mt-2 font-display text-2xl font-semibold text-slate-900">{title}</h2>
-      {targetLink ? (
-        <Link href={targetLink} className="mt-2 inline-flex text-sm font-medium text-amber-700 underline-offset-4 hover:underline">
-          Open target context
-        </Link>
+    <section className="panel overflow-hidden rounded-[28px]">
+      {message || catalogMessage ? (
+        <p className="px-4 py-3 text-sm text-rose-700">{message || catalogMessage}</p>
       ) : null}
 
-      {message || catalogMessage ? <p className="mt-3 text-sm text-rose-700">{message || catalogMessage}</p> : null}
-
-      <div className="mt-4 grid gap-3">
-        {documents.length ? (
-          documents.map((document) => (
-            <Link
-              key={document.id}
-              href={`/udms/documents/${document.id}`}
-              className="rounded-[20px] border border-slate-200 bg-white px-4 py-4 text-sm text-slate-700"
-            >
-              <p className="font-semibold text-slate-900">{document.header.title}</p>
-              <p className="mt-1 text-slate-600">
-                {document.state.status} / v{document.currentRevision.version}
-              </p>
-            </Link>
-          ))
-        ) : (
-          <div className="rounded-[20px] border border-dashed border-slate-300 bg-white/70 px-4 py-4 text-sm text-slate-600">
-            No documents are linked to this target yet.
-          </div>
-        )}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-100 bg-slate-50">
+              <th className="w-8 px-3 py-2 text-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">#</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">제목</th>
+              <th className="px-3 py-2 text-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">상태</th>
+              <th className="hidden px-3 py-2 text-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 sm:table-cell">버전</th>
+              <th className="hidden px-3 py-2 text-right text-xs font-semibold uppercase tracking-[0.2em] text-slate-400 md:table-cell">수정일</th>
+            </tr>
+          </thead>
+          <tbody>
+            {documents.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-3 py-6 text-center text-xs text-slate-400">
+                  연결된 문서가 없습니다.
+                </td>
+              </tr>
+            ) : (
+              documents.map((document, index) => (
+                <tr key={document.id} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-amber-50/60">
+                  <td className="px-3 py-2.5 text-center text-xs text-slate-400">{index + 1}</td>
+                  <td className="px-3 py-2.5">
+                    <Link href={`/udms/documents/${document.id}`} className="font-medium text-slate-900 hover:text-amber-700">
+                      {document.header.title}
+                    </Link>
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[document.state.status]}`}>
+                      {statusLabels[document.state.status]}
+                    </span>
+                  </td>
+                  <td className="hidden px-3 py-2.5 text-center text-xs text-slate-500 sm:table-cell">
+                    v{document.currentRevision.version}
+                  </td>
+                  <td className="hidden px-3 py-2.5 text-right text-xs text-slate-400 md:table-cell">
+                    {formatDate(document.metadata.updatedAt)}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </section>
   );
 }
+
