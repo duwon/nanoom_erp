@@ -31,7 +31,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
 COPY package.json ./
 
 EXPOSE 3400
