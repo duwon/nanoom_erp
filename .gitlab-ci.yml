@@ -86,6 +86,8 @@ deploy:
 
     # 데이터 디렉토리 사전 생성 (초기 배포 시 자동 생성)
     - mkdir -p /volume1/docker/nanoom-$ENV/mongo /volume1/docker/nanoom-$ENV/udms
+    # MongoDB 컨테이너(UID 999)가 데이터 디렉토리에 쓸 수 있도록 권한 부여
+    - chmod 777 /volume1/docker/nanoom-$ENV/mongo
 
     # 배포 실행
     # --pull missing: 로컬에 없는 이미지(mongo 등)만 pull, 직접 빌드한 이미지는 로컬 사용
