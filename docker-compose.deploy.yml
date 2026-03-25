@@ -27,7 +27,7 @@ services:
       start_period: 10s
 
   backend:
-    image: ${REGISTRY_URL}/backend:${CI_COMMIT_REF_SLUG}
+    image: ${IMAGE_PREFIX}/backend:${CI_COMMIT_REF_SLUG}
     container_name: nanoom-backend-${ENV}
     restart: unless-stopped
     networks:
@@ -64,7 +64,7 @@ services:
 
   frontend:
     # NEXT_PUBLIC_* 변수는 빌드 타임에 번들에 embed됨 (이미지에 포함)
-    image: ${REGISTRY_URL}/frontend:${CI_COMMIT_REF_SLUG}
+    image: ${IMAGE_PREFIX}/frontend:${CI_COMMIT_REF_SLUG}
     container_name: nanoom-frontend-${ENV}
     restart: unless-stopped
     networks:
