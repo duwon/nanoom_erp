@@ -118,6 +118,7 @@ export type WorshipTaskFieldSpec = {
   fieldType: WorshipFieldType;
   required: boolean;
   helpText: string;
+  binding?: "value" | "title" | "detail" | "notes" | "slideTemplateKey";
 };
 
 export type WorshipGuestAccess = {
