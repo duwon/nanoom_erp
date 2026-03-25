@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la /f/Drive/Git/nanoom_erp/frontend/app/\\\\\\(admin\\\\\\)/admin/)",
+      "Bash(ls -la /f/Drive/Git/nanoom_erp/frontend/app/\\\\\\(admin\\\\\\)/admin/worship-section-types/)",
+      "Bash(ls -la /f/Drive/Git/nanoom_erp/frontend/app/\\\\\\(admin\\\\\\)/admin/worship-input-templates/)",
+      "Bash(ls -la /f/Drive/Git/nanoom_erp/frontend/app/\\\\\\(admin\\\\\\)/admin/worship-slide-templates/)",
+      "Skill(update-config)",
+      "Skill(update-config:*)"
+    ]
+  }
+}

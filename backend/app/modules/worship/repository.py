@@ -10,7 +10,7 @@ from pymongo import ASCENDING, ReturnDocument
 from app.core.store import ConflictError, NotFoundError, iso_now, new_id
 from app.modules.worship.schemas import WorshipGenerationRule, WorshipPresentationState, WorshipWorkspaceBucket
 
-WORSHIP_ADMIN_SCHEMA_VERSION = 2
+WORSHIP_ADMIN_SCHEMA_VERSION = 3
 
 
 def _clone(value: Any) -> Any:
@@ -121,11 +121,45 @@ def default_input_templates() -> list[dict[str, Any]]:
             ],
             "is_active": True,
         },
+        {
+            "id": "input-call-to-worship",
+            "label": "예배로 부름 입력",
+            "description": "예배로 부름에 사용할 성경 본문을 입력합니다.",
+            "tips": "예: 이사야 53:5-6",
+            "fields": [
+                _field_spec("f1", "본문", "scripture"),
+            ],
+            "is_active": True,
+        },
+        {
+            "id": "input-antiphonal",
+            "label": "성경교독 입력",
+            "description": "교독에 사용할 성경 본문을 입력합니다.",
+            "tips": "예: 시편 40:1-5",
+            "fields": [
+                _field_spec("f1", "본문", "scripture"),
+            ],
+            "is_active": True,
+        },
     ]
 
 
 def default_section_type_definitions() -> list[dict[str, Any]]:
     return [
+        {
+            "code": "call_to_worship",
+            "label": "예배로 부름",
+            "description": "성경 본문으로 예배를 시작하는 순서",
+            "workspace_bucket": WorshipWorkspaceBucket.content.value,
+            "default_title": "예배로 부름",
+            "default_role": "인도자",
+            "default_duration_minutes": 3,
+            "default_due_offset_minutes": 120,
+            "default_input_template_id": "input-call-to-worship",
+            "default_slide_template_key": "scripture-main",
+            "is_active": True,
+            "sort_order": 5,
+        },
         {
             "code": "song",
             "label": "찬양",
@@ -139,6 +173,34 @@ def default_section_type_definitions() -> list[dict[str, Any]]:
             "default_slide_template_key": "lyrics-16x9",
             "is_active": True,
             "sort_order": 10,
+        },
+        {
+            "code": "confession",
+            "label": "신앙고백",
+            "description": "사도신경 등 신앙고백 순서",
+            "workspace_bucket": WorshipWorkspaceBucket.content.value,
+            "default_title": "신앙고백",
+            "default_role": "다함께",
+            "default_duration_minutes": 2,
+            "default_due_offset_minutes": 120,
+            "default_input_template_id": "",
+            "default_slide_template_key": "prayer-card",
+            "is_active": True,
+            "sort_order": 15,
+        },
+        {
+            "code": "antiphonal",
+            "label": "성경교독",
+            "description": "교독문/성경교독 순서",
+            "workspace_bucket": WorshipWorkspaceBucket.content.value,
+            "default_title": "성경교독",
+            "default_role": "한절씩 교독",
+            "default_duration_minutes": 3,
+            "default_due_offset_minutes": 120,
+            "default_input_template_id": "input-antiphonal",
+            "default_slide_template_key": "scripture-main",
+            "is_active": True,
+            "sort_order": 25,
         },
         {
             "code": "special_song",
@@ -224,6 +286,34 @@ def default_section_type_definitions() -> list[dict[str, Any]]:
             "is_active": True,
             "sort_order": 70,
         },
+        {
+            "code": "offering",
+            "label": "헌금봉헌",
+            "description": "헌금 봉헌 순서",
+            "workspace_bucket": WorshipWorkspaceBucket.content.value,
+            "default_title": "헌금봉헌",
+            "default_role": "다함께",
+            "default_duration_minutes": 4,
+            "default_due_offset_minutes": 90,
+            "default_input_template_id": "",
+            "default_slide_template_key": "notice-card",
+            "is_active": True,
+            "sort_order": 75,
+        },
+        {
+            "code": "benediction",
+            "label": "축도",
+            "description": "예배 마침 축도",
+            "workspace_bucket": WorshipWorkspaceBucket.content.value,
+            "default_title": "축도",
+            "default_role": "담임목사",
+            "default_duration_minutes": 2,
+            "default_due_offset_minutes": 60,
+            "default_input_template_id": "",
+            "default_slide_template_key": "prayer-card",
+            "is_active": True,
+            "sort_order": 90,
+        },
     ]
 
 
@@ -294,14 +384,22 @@ def default_worship_templates() -> list[dict[str, Any]]:
             "id": "wtemplate-sunday1",
             "service_kind": "sunday1",
             "display_name": "주일 1부 예배",
-            "start_time": "07:00",
+            "start_time": "09:00",
             "generation_rule": WorshipGenerationRule.sunday.value,
             "default_sections": [
-                _section_preset("opening-song", 1, "song", title="경배와 찬양", role="찬양팀", duration_minutes=12),
-                _section_preset("hymn", 2, "song", title="찬송", role="찬양팀", duration_minutes=5),
-                _section_preset("scripture", 3, "scripture", title="성경 봉독", role="방송팀", duration_minutes=5),
-                _section_preset("message", 4, "message", title="말씀", role="설교자", duration_minutes=25),
-                _section_preset("notice", 5, "notice", title="공지", role="방송팀", duration_minutes=4),
+                _section_preset("s1-call", 1, "call_to_worship", title="예배로 부름", role="인도자", duration_minutes=3),
+                _section_preset("s1-confession", 2, "confession", title="신앙고백", role="다함께", duration_minutes=2),
+                _section_preset("s1-antiphonal", 3, "antiphonal", title="성경교독", role="한절씩 교독", duration_minutes=3),
+                _section_preset("s1-praise", 4, "song", title="경배와 찬양", role="찬양팀", duration_minutes=10),
+                _section_preset("s1-prayer", 5, "prayer", title="회중기도", role="인도자", duration_minutes=5),
+                _section_preset("s1-scripture", 6, "scripture", title="성경봉독", role="인도자", duration_minutes=4),
+                _section_preset("s1-special-song", 7, "special_song", title="찬양", role="찬양팀", duration_minutes=5),
+                _section_preset("s1-message", 8, "message", title="말씀", role="설교자", duration_minutes=25),
+                _section_preset("s1-notice", 9, "notice", title="교회소식", role="인도자", duration_minutes=4),
+                _section_preset("s1-hymn", 10, "song", title="찬송", role="찬양팀", duration_minutes=4),
+                _section_preset("s1-offering", 11, "offering", title="헌금봉헌", role="다함께", duration_minutes=4),
+                _section_preset("s1-hymn2", 12, "song", title="찬송", role="다함께", duration_minutes=2),
+                _section_preset("s1-benediction", 13, "benediction", title="축도", role="담임목사", duration_minutes=2),
             ],
             "is_active": True,
         },
@@ -312,11 +410,19 @@ def default_worship_templates() -> list[dict[str, Any]]:
             "start_time": "11:00",
             "generation_rule": WorshipGenerationRule.sunday.value,
             "default_sections": [
-                _section_preset("opening-song", 1, "song", title="경배와 찬양", role="찬양팀", duration_minutes=15),
-                _section_preset("special-song", 2, "special_song", title="특송", role="특송팀", duration_minutes=5),
-                _section_preset("scripture", 3, "scripture", title="성경 봉독", role="방송팀", duration_minutes=5),
-                _section_preset("message", 4, "message", title="말씀", role="설교자", duration_minutes=30),
-                _section_preset("notice", 5, "notice", title="광고", role="방송팀", duration_minutes=5),
+                _section_preset("s2-call", 1, "call_to_worship", title="예배로 부름", role="인도자", duration_minutes=3),
+                _section_preset("s2-confession", 2, "confession", title="신앙고백", role="다함께", duration_minutes=2),
+                _section_preset("s2-antiphonal", 3, "antiphonal", title="성경교독", role="한절씩 교독", duration_minutes=3),
+                _section_preset("s2-praise", 4, "song", title="경배와 찬양", role="찬양팀", duration_minutes=10),
+                _section_preset("s2-prayer", 5, "prayer", title="회중기도", role="인도자", duration_minutes=5),
+                _section_preset("s2-scripture", 6, "scripture", title="성경봉독", role="인도자", duration_minutes=4),
+                _section_preset("s2-special-song", 7, "special_song", title="찬양", role="찬양팀", duration_minutes=5),
+                _section_preset("s2-message", 8, "message", title="말씀", role="설교자", duration_minutes=25),
+                _section_preset("s2-notice", 9, "notice", title="교회소식", role="인도자", duration_minutes=4),
+                _section_preset("s2-hymn", 10, "song", title="찬송", role="찬양팀", duration_minutes=4),
+                _section_preset("s2-offering", 11, "offering", title="헌금봉헌", role="다함께", duration_minutes=4),
+                _section_preset("s2-hymn2", 12, "song", title="찬송", role="다함께", duration_minutes=2),
+                _section_preset("s2-benediction", 13, "benediction", title="축도", role="담임목사", duration_minutes=2),
             ],
             "is_active": True,
         },

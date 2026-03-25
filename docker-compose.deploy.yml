@@ -1,0 +1,88 @@
+# 서버 배포용 docker-compose (NAS에서 실행)
+# 사용법: GitLab CI가 자동 실행. 수동 실행 시:
+#   ENV=prod REGISTRY_URL=... CI_COMMIT_REF_SLUG=main \
+#   docker compose -f docker-compose.deploy.yml --env-file .env.prod -p nanoom-prod up -d
+#
+# 네트워크 구조 (참고 서비스와 동일한 방식):
+#   edge_net    : 외부 접근 가능 (frontend, backend)
+#   internal_net: 내부 전용, 인터넷 차단 (mongo)
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: nanoom-mongo-${ENV}
+    restart: unless-stopped
+    networks:
+      - internal_net
+    # 보안: DB 포트는 내부망에만 노출. 외부 접근 필요 시 HOST_BIND_IP 사용
+    # ports:
+    #   - "${HOST_BIND_IP:-127.0.0.1}:${MONGO_PORT}:27017"
+    volumes:
+      - /volume1/docker/nanoom-${ENV}/mongo:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    image: ${REGISTRY_URL}/backend:${CI_COMMIT_REF_SLUG}
+    container_name: nanoom-backend-${ENV}
+    restart: unless-stopped
+    networks:
+      - edge_net      # 브라우저 클라이언트 직접 접근 (NEXT_PUBLIC_API_BASE_URL)
+      - internal_net  # MongoDB 접근 + OAuth 등 외부 API 호출
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      MONGO_DB: nanoom_erp_${ENV}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      FRONTEND_APP_URL: ${FRONTEND_APP_URL}
+      CORS_ORIGINS: ${FRONTEND_APP_URL}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE}
+      AUTH_COOKIE_SAMESITE: ${AUTH_COOKIE_SAMESITE}
+      AUTH_COOKIE_DOMAIN: ${AUTH_COOKIE_DOMAIN:-}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      KAKAO_OAUTH_CLIENT_ID: ${KAKAO_OAUTH_CLIENT_ID:-}
+      KAKAO_OAUTH_CLIENT_SECRET: ${KAKAO_OAUTH_CLIENT_SECRET:-}
+      AUTH_DEV_SEED_ENABLED: ${AUTH_DEV_SEED_ENABLED:-false}
+      UDMS_STORAGE_DIR: /app/data/storage
+    ports:
+      - "${BACKEND_PORT}:8000"
+    volumes:
+      - /volume1/docker/nanoom-${ENV}/udms:/app/data/storage
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  frontend:
+    # NEXT_PUBLIC_* 변수는 빌드 타임에 번들에 embed됨 (이미지에 포함)
+    image: ${REGISTRY_URL}/frontend:${CI_COMMIT_REF_SLUG}
+    container_name: nanoom-frontend-${ENV}
+    restart: unless-stopped
+    networks:
+      - edge_net      # 외부 포트 바인딩
+      - internal_net  # 백엔드 내부 통신 (SSR용 API_INTERNAL_BASE_URL)
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      # SSR 전용 내부 통신 (런타임 주입 가능)
+      API_INTERNAL_BASE_URL: http://backend:8000
+      NEXT_TELEMETRY_DISABLED: "1"
+    ports:
+      - "${FRONTEND_PORT}:3400"
+
+networks:
+  edge_net:
+    driver: bridge
+  internal_net:
+    driver: bridge
+    internal: true  # 이 네트워크는 외부 인터넷 차단 (DB 격리)

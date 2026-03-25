@@ -97,6 +97,22 @@ class WorshipService:
             await self.udms_bridge.reset()
         await self.repository.ensure_indexes()
         await self.repository.seed_defaults_if_empty()
+        await self._seed_example_services()
+
+    async def _seed_example_services(self) -> None:
+        """앱 시작 시 이번 주 주일 예배 예제 서비스를 자동 생성합니다."""
+        from app.modules.worship.example_services import build_sunday_services
+        today = self._local_today()
+        days_until_sunday = (6 - today.weekday()) % 7
+        target_date = today if days_until_sunday == 0 else today + timedelta(days=days_until_sunday)
+        input_templates = {
+            item["id"]: item
+            for item in await self.repository.list_input_templates(active_only=False)
+        }
+        templates = {item["id"]: item for item in await self.repository.list_templates(active_only=True)}
+        services = build_sunday_services(target_date, templates, input_templates, self.timezone)
+        for svc in services:
+            await self.repository.save_service(svc)
 
     def _local_today(self) -> date:
         return datetime.now(self.timezone).date()
