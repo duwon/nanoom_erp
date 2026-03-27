@@ -35,8 +35,8 @@ build:
   script:
     - |
       if [ "$CI_COMMIT_BRANCH" = "main" ]; then
-        NEXT_PUBLIC_API_BASE_URL="http://erp.nanoom.org:8000"
-        NEXT_PUBLIC_WS_URL="ws://erp.nanoom.org:8000/ws/display"
+        NEXT_PUBLIC_API_BASE_URL="https://erp.nanoom.org"
+        NEXT_PUBLIC_WS_URL="wss://erp.nanoom.org/ws/display"
       else
         NEXT_PUBLIC_API_BASE_URL="http://erp.nanoom.org:8001"
         NEXT_PUBLIC_WS_URL="ws://erp.nanoom.org:8001/ws/display"
@@ -79,6 +79,12 @@ deploy:
         ENV="prod"
       else
         ENV="dev"
+      fi
+
+      if [ "$ENV" = "prod" ] && grep -Eq '^FRONTEND_PORT=80$' /volume1/docker/nanoom-project/.env.$ENV; then
+        echo "Production frontend must not bind directly to port 80 on the NAS host." >&2
+        echo "Set FRONTEND_PORT=3400 in .env.prod and terminate 80/443 at the NAS reverse proxy." >&2
+        exit 1
       fi
 
     # 최신 docker-compose.deploy.yml 을 배포 디렉토리로 복사

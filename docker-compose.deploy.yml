@@ -52,7 +52,7 @@ services:
       AUTH_DEV_SEED_ENABLED: ${AUTH_DEV_SEED_ENABLED:-false}
       UDMS_STORAGE_DIR: /app/data/storage
     ports:
-      - "${BACKEND_PORT}:8000"
+      - "${BACKEND_BIND_IP:-127.0.0.1}:${BACKEND_PORT}:8000"
     volumes:
       - /volume1/docker/nanoom-${ENV}/udms:/app/data/storage
     healthcheck:
@@ -78,7 +78,7 @@ services:
       API_INTERNAL_BASE_URL: http://backend:8000
       NEXT_TELEMETRY_DISABLED: "1"
     ports:
-      - "${FRONTEND_PORT}:3400"
+      - "${FRONTEND_BIND_IP:-127.0.0.1}:${FRONTEND_PORT}:3400"
 
 networks:
   edge_net:

@@ -9,6 +9,7 @@ FastAPI, Next.js, MongoDB 기반의 실시간 자막 송출 및 관리 데모입
 - [docs/architecture.md](docs/architecture.md): 현재 구현 구조 요약
 - [docs/layout.md](docs/layout.md): 목표 레이아웃과 정보구조 기준서
 - [docs/operations.md](docs/operations.md): 로컬 실행, 환경변수, 운영 메모, 장애 대응
+- [docs/deployment.md](docs/deployment.md): NAS 배포 구조, GitLab CI/CD, 리버스 프록시 설정
 - [docs/user.md](docs/user.md): 소셜 로그인, 승인 흐름, 역할/상태 정책
 
 ## 빠른 시작
